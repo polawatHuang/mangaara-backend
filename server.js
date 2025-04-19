@@ -6,7 +6,7 @@ const mangaRoutes = require('./routes/manga');
 const testRoutes = require('./routes/test');
 
 const app = express();
-const PORT = 3001;
+const PORT = 80;
 
 app.use(cors());
 app.use(bodyParser.json());
