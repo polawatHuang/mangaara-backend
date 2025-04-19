@@ -5,11 +5,11 @@ const db = require('../db');
 
 // Create
 router.post('/', async (req, res) => {
-  const { manga_name, manga_disc, manga_bg_img, tag_id } = req.body;
+  const { manga_name, manga_disc, manga_bg_img, manga_slug, tag_id } = req.body;
   try {
     const [result] = await db.execute(
-      'INSERT INTO mangas (manga_name, manga_disc, manga_bg_img, tag_id) VALUES (?, ?, ?, ?)',
-      [manga_name, manga_disc, manga_bg_img, tag_id]
+      'INSERT INTO mangas (manga_name, manga_disc, manga_bg_img, manga_slug, tag_id) VALUES (?, ?, ?, ?, ?)',
+      [manga_name, manga_disc, manga_bg_img, manga_slug, tag_id]
     );
     res.status(201).json({ id: result.insertId });
   } catch (err) {
