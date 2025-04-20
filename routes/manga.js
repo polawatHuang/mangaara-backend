@@ -52,14 +52,27 @@ router.get('/:id', async (req, res) => {
 });
 
 router.get('/:id/image', async (req, res) => {
-  const [rows] = await db.execute('SELECT manga_bg_blob FROM mangas WHERE manga_id = ?', [req.params.id]);
-  if (!rows[0] || !rows[0].manga_bg_blob) return res.sendStatus(404);
+  try {
+    const [rows] = await db.execute(
+      'SELECT manga_bg_blob FROM mangas WHERE manga_id = ?',
+      [req.params.id]
+    );
 
-  res.writeHead(200, {
-    'Content-Type': 'image/jpeg',
-    'Content-Length': rows[0].manga_bg_blob.length
-  });
-  res.end(rows[0].manga_bg_blob);
+    if (!rows[0] || !rows[0].manga_bg_blob) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    const imageBuffer = rows[0].manga_bg_blob;
+
+    res.writeHead(200, {
+      'Content-Type': 'image/jpeg', // or 'image/png' depending on your upload
+      'Content-Length': imageBuffer.length
+    });
+    res.end(imageBuffer);
+  } catch (err) {
+    console.error("[Image Serve Error]", err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Update
