@@ -5,12 +5,25 @@ const db = require('../db');
 
 // Create
 router.post('/', async (req, res) => {
-  const { manga_name, manga_disc, manga_bg_img, manga_slug, tag_id } = req.body;
+  const { manga_name, manga_disc, manga_bg_img, manga_bg_blob, manga_slug, tag_id } = req.body;
+
   try {
+    const imageBuffer = manga_bg_blob ? Buffer.from(manga_bg_blob, 'base64') : null;
+
     const [result] = await db.execute(
-      'INSERT INTO mangas (manga_name, manga_disc, manga_bg_img, manga_slug, tag_id) VALUES (?, ?, ?, ?, ?)',
-      [manga_name, manga_disc, manga_bg_img, manga_slug, tag_id]
+      `INSERT INTO mangas 
+       (manga_name, manga_disc, manga_bg_img, manga_bg_blob, manga_slug, tag_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        manga_name,
+        manga_disc,
+        manga_bg_img,
+        imageBuffer,
+        manga_slug,
+        tag_id
+      ]
     );
+
     res.status(201).json({ id: result.insertId });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -36,6 +49,17 @@ router.get('/:id', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+router.get('/:id/image', async (req, res) => {
+  const [rows] = await db.execute('SELECT manga_bg_blob FROM mangas WHERE manga_id = ?', [req.params.id]);
+  if (!rows[0] || !rows[0].manga_bg_blob) return res.sendStatus(404);
+
+  res.writeHead(200, {
+    'Content-Type': 'image/jpeg',
+    'Content-Length': rows[0].manga_bg_blob.length
+  });
+  res.end(rows[0].manga_bg_blob);
 });
 
 // Update
