@@ -16,11 +16,11 @@ const PORT = 443;
 app.set('trust proxy', 1);
 
 // ✅ Rate limiting
-const limiter = rateLimit({
-  windowMs: 50 * 60 * 1000, // 50 minutes
-  max: 1000, // 1000 requests per IP
-});
-app.use(limiter);
+// const limiter = rateLimit({
+//   windowMs: 50 * 60 * 1000, // 50 minutes
+//   max: 1000, // 1000 requests per IP
+// });
+// app.use(limiter);
 
 // ✅ Security headers
 app.use(helmet());
@@ -40,7 +40,8 @@ app.use(logRequest);
 // ✅ Main routes
 app.use('/api/mangas', mangaRoutes);
 app.use('/api/tags', tagRoutes);
-app.use('/api/logs', requireAdmin, logRoutes);
+app.use('/api/logs', logRoutes);
+//app.use('/api/logs', requireAdmin, logRoutes);
 
 // ✅ Fallback 404
 app.use((req, res) => {
