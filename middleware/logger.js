@@ -1,20 +1,21 @@
 // middleware/logger.js
 const db = require("../db");
-const filteredPayload = { ...req.body };
-
-if ('password' in filteredPayload) filteredPayload.password = '[REDACTED]';
 
 // ✅ Log normal request
 async function logRequest(req, res, next) {
   const action = req.headers['x-action'] || 'UNSPECIFIED';
   const userId = req.headers['x-user-id'] || null;
 
+  // ✅ Sanitize payload (e.g. hide password fields)
+  const filteredPayload = { ...req.body };
+  if ('password' in filteredPayload) filteredPayload.password = '[REDACTED]';
+
   req._logEntry = {
     action,
     user_id: userId,
     method: req.method,
     endpoint: req.originalUrl,
-    payload: JSON.stringify(req.body || {}),
+    payload: JSON.stringify(filteredPayload),
     ip_address: req.ip,
     user_agent: req.headers['user-agent'],
     error_message: null
