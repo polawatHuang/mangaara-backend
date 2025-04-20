@@ -33,7 +33,21 @@ router.post('/', async (req, res) => {
 // Read All
 router.get('/', async (req, res) => {
   try {
-    const [rows] = await db.execute('SELECT * FROM mangas ORDER BY created_at DESC');
+    const [rows] = await db.execute(`
+      SELECT 
+        manga_id,
+        manga_name,
+        manga_disc,
+        manga_bg_img,
+        view,
+        created_at,
+        updated_at,
+        manga_slug,
+        tag_id
+      FROM mangas
+      ORDER BY created_at DESC
+    `);
+
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
