@@ -1,9 +1,40 @@
-// middleware/logger.js (append this function)
+// middleware/logger.js
+const db = require("../db");
 
+// ✅ Log normal request
+async function logRequest(req, res, next) {
+  const action = req.headers['x-action'] || 'UNSPECIFIED';
+  const userId = req.headers['x-user-id'] || null;
+
+  req._logEntry = {
+    action,
+    user_id: userId,
+    method: req.method,
+    endpoint: req.originalUrl,
+    payload: JSON.stringify(req.body || {}),
+    ip_address: req.ip,
+    user_agent: req.headers['user-agent'],
+    error_message: null
+  };
+
+  try {
+    const [result] = await db.execute(
+      `INSERT INTO logs (action, user_id, method, endpoint, payload, ip_address, user_agent, error_message)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      Object.values(req._logEntry)
+    );
+    req._logEntry.log_id = result.insertId;
+  } catch (err) {
+    console.error("[Log Error]", err.message);
+  }
+
+  next();
+}
+
+// ✅ Log error response
 async function logError(err, req, res, next) {
   console.error("[API Error]", err.message);
 
-  // Update log if it exists
   if (req._logEntry?.log_id) {
     try {
       await db.execute(
@@ -14,7 +45,6 @@ async function logError(err, req, res, next) {
       console.error("[Error Logging Failed]", logErr.message);
     }
   } else {
-    // Log directly if not recorded yet
     try {
       await db.execute(
         `INSERT INTO logs (action, method, endpoint, payload, ip_address, user_agent, error_message)
@@ -37,4 +67,8 @@ async function logError(err, req, res, next) {
   res.status(500).json({ error: err.message });
 }
 
-module.exports = { logRequest, logError };
+// ✅ Export both functions
+module.exports = {
+  logRequest,
+  logError
+};
