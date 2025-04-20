@@ -1,5 +1,8 @@
 // middleware/logger.js
 const db = require("../db");
+const filteredPayload = { ...req.body };
+
+if ('password' in filteredPayload) filteredPayload.password = '[REDACTED]';
 
 // ✅ Log normal request
 async function logRequest(req, res, next) {
