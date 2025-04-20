@@ -32,7 +32,7 @@ app.use(cors({
 }));
 
 // ✅ JSON body parser
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '1gb' }));
 
 // ✅ Request logging
 app.use(logRequest);
