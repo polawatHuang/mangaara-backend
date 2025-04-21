@@ -43,7 +43,8 @@ router.get('/', async (req, res) => {
         created_at,
         updated_at,
         manga_slug,
-        tag_id
+        tag_id,
+        ep
       FROM mangas
       ORDER BY created_at DESC
     `);
