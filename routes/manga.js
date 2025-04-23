@@ -2,29 +2,38 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { safeJsonArray } = require('../libs/safeJsonArray');
 
 // Create
-router.post('/', async (req, res) => {
-  const { manga_name, manga_disc, manga_bg_img, manga_bg_blob, manga_slug, tag_id } = req.body;
-
+// Read All
+router.get('/', async (req, res) => {
   try {
-    const imageBuffer = manga_bg_blob ? Buffer.from(manga_bg_blob, 'base64') : null;
-
-    const [result] = await db.execute(
-      `INSERT INTO mangas 
-       (manga_name, manga_disc, manga_bg_img, manga_bg_blob, manga_slug, tag_id)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [
+    const [rows] = await db.execute(`
+      SELECT 
+        manga_id,
         manga_name,
         manga_disc,
         manga_bg_img,
-        imageBuffer,
+        view,
+        created_at,
+        updated_at,
         manga_slug,
-        tag_id
-      ]
-    );
+        tag_id,
+        ep
+      FROM mangas
+      ORDER BY created_at DESC
+    `);
 
-    res.status(201).json({ id: result.insertId });
+    // Post-process `tag_id` and `ep`
+    const processed = rows.map((manga) => {
+      return {
+        ...manga,
+        tag_id: safeJsonArray(manga.tag_id),
+        ep: safeJsonArray(manga.ep),
+      };
+    });
+
+    res.json(processed);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
