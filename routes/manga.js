@@ -1,45 +1,42 @@
-// routes/manga.js
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
 const db = require('../db');
-const { safeJsonArray } = require('../libs/safeJsonArray');
+const path = require('path');
+const fs = require('fs');
 
-// Create
-// Read All
-router.get('/', async (req, res) => {
+// Set up multer to handle file uploads
+const upload = multer({
+  dest: '/var/www/vhosts/mangaara.com/httpdocs/images/', // Plesk directory for image uploads
+  limits: { fileSize: 10 * 1024 * 1024 }, // Limit file size to 10MB
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === '.jpg' || ext === '.jpeg' || ext === '.png') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only .jpg, .jpeg, .png files are allowed.'));
+    }
+  }
+});
+
+// Create Manga (with Image Upload)
+router.post('/', upload.single('manga_bg_img'), async (req, res) => {
+  const { manga_name, manga_disc, manga_slug, tag_id } = req.body;
+  const manga_bg_img = req.file ? `/images/${req.file.filename}` : null; // Save the image path
+
   try {
-    const [rows] = await db.execute(`
-      SELECT 
-        manga_id,
-        manga_name,
-        manga_disc,
-        manga_bg_img,
-        view,
-        created_at,
-        updated_at,
-        manga_slug,
-        tag_id,
-        ep
-      FROM mangas
-      ORDER BY created_at DESC
-    `);
+    const [result] = await db.execute(
+      'INSERT INTO mangas (manga_name, manga_disc, manga_bg_img, manga_slug, tag_id) VALUES (?, ?, ?, ?, ?)',
+      [manga_name, manga_disc, manga_bg_img, manga_slug, tag_id]
+    );
 
-    // Post-process `tag_id` and `ep`
-    const processed = rows.map((manga) => {
-      return {
-        ...manga,
-        tag_id: safeJsonArray(manga.tag_id),
-        ep: safeJsonArray(manga.ep),
-      };
-    });
-
-    res.json(processed);
+    res.status(201).json({ id: result.insertId, manga_bg_img });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Read All
+// Read All Manga (Image is URL)
 router.get('/', async (req, res) => {
   try {
     const [rows] = await db.execute(`
@@ -64,7 +61,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Read One
+// Read One Manga (Image URL)
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await db.execute('SELECT * FROM mangas WHERE manga_id = ?', [req.params.id]);
@@ -75,37 +72,15 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-router.get('/:id/image', async (req, res) => {
-  try {
-    const [rows] = await db.execute(
-      'SELECT manga_bg_blob FROM mangas WHERE manga_id = ?',
-      [req.params.id]
-    );
+// Update Manga (with Image Upload)
+router.put('/:id', upload.single('manga_bg_img'), async (req, res) => {
+  const { manga_name, manga_disc, manga_slug, tag_id } = req.body;
+  const manga_bg_img = req.file ? `/images/${req.file.filename}` : null;
 
-    if (!rows[0] || !rows[0].manga_bg_blob) {
-      return res.status(404).json({ error: 'Image not found' });
-    }
-
-    const imageBuffer = rows[0].manga_bg_blob;
-
-    res.writeHead(200, {
-      'Content-Type': 'image/jpeg', // or 'image/png' depending on your upload
-      'Content-Length': imageBuffer.length
-    });
-    res.end(imageBuffer);
-  } catch (err) {
-    console.error("[Image Serve Error]", err.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Update
-router.put('/:id', async (req, res) => {
-  const { manga_name, manga_disc, manga_bg_img, tag_id } = req.body;
   try {
     await db.execute(
-      'UPDATE mangas SET manga_name=?, manga_disc=?, manga_bg_img=?, tag_id=? WHERE manga_id=?',
-      [manga_name, manga_disc, manga_bg_img, tag_id, req.params.id]
+      'UPDATE mangas SET manga_name=?, manga_disc=?, manga_bg_img=?, manga_slug=?, tag_id=? WHERE manga_id=?',
+      [manga_name, manga_disc, manga_bg_img, manga_slug, tag_id, req.params.id]
     );
     res.sendStatus(204); // No content
   } catch (err) {
@@ -113,7 +88,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Delete
+// Delete Manga
 router.delete('/:id', async (req, res) => {
   try {
     await db.execute('DELETE FROM mangas WHERE manga_id=?', [req.params.id]);
