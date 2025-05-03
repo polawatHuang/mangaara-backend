@@ -12,45 +12,46 @@ const { requireAdmin } = require("./middleware/auth");
 const app = express();
 const PORT = 443;
 
-// ✅ trust proxy if using reverse proxy or HTTPS
+// ✅ Trust proxy if using reverse proxy or HTTPS
 app.set('trust proxy', 1);
 
 // ✅ Rate limiting
-// const limiter = rateLimit({
-//   windowMs: 50 * 60 * 1000, // 50 minutes
-//   max: 1000, // 1000 requests per IP
-// });
-// app.use(limiter);
+const limiter = rateLimit({
+  windowMs: 50 * 60 * 1000, // 50 minutes
+  max: 1000, // Limit to 1000 requests per IP
+  message: "Too many requests, please try again later.",
+});
 
-// ✅ Security headers
+app.use(limiter);
+
+// ✅ Security headers using Helmet
 app.use(helmet());
 
-// ✅ CORS: restrict to known domains
+// ✅ CORS: Restrict to known domains
 app.use(cors({
-  origin: ["https://www.mangaara.com", "https://mangaara.vercel.app"],
+  origin: ["https://www.mangaara.com", "https://mangaara.vercel.app"], // Update with your valid domains
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
-// ✅ JSON body parser
-app.use(bodyParser.json({ limit: '1gb' }));
+// ✅ JSON body parser with limit
+app.use(bodyParser.json({ limit: '10mb' })); // Adjust the limit based on your use case
 
-// ✅ Request logging
+// ✅ Request logging middleware
 app.use(logRequest);
 
-// ✅ Main routes
+// ✅ Main API Routes
 app.use('/api/mangas', mangaRoutes);
 app.use('/api/tags', tagRoutes);
-app.use('/api/logs', logRoutes);
-//app.use('/api/logs', requireAdmin, logRoutes);
+app.use('/api/logs', requireAdmin, logRoutes); // Uncomment if you want to require admin for logs
 
-// ✅ Fallback 404
+// ✅ Fallback 404 for undefined routes
 app.use((req, res) => {
   res.status(404).json({ error: "Not Found" });
 });
 
-// ✅ Error logger
+// ✅ Error logging middleware
 app.use(logError);
 
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server running at https://localhost:${PORT}`);
 });
