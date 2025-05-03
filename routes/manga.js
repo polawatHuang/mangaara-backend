@@ -8,10 +8,7 @@ const fs = require('fs');
 // Set up multer to handle file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    // Sanitize manga_name to avoid special characters and spaces
-    const mangaName = req.body.manga_name ? req.body.manga_name.replace(/\s+/g, '_').toLowerCase() : 'default';
-    
-    // Create directory path dynamically under '/images/manga/{manga_name}/'
+    const mangaName = req.body.manga_name ? req.body.manga_name.replace(/\s+/g, '_').toLowerCase() : 'default'; // Use manga_name or default
     const dirPath = `/var/www/vhosts/mangaara.com/httpdocs/images/manga/${mangaName}`;
 
     // Create the directory if it does not exist
@@ -54,6 +51,7 @@ router.post('/', upload.single('manga_bg_img'), async (req, res) => {
 
     res.status(201).json({ id: result.insertId, manga_bg_img });
   } catch (err) {
+    console.error("[Error inserting manga]", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -79,6 +77,7 @@ router.get('/', async (req, res) => {
 
     res.json(rows);
   } catch (err) {
+    console.error("[Error fetching mangas]", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -87,9 +86,10 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await db.execute('SELECT * FROM mangas WHERE manga_id = ?', [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    if (rows.length === 0) return res.status(404).json({ error: 'Manga not found' });
     res.json(rows[0]);
   } catch (err) {
+    console.error("[Error fetching manga]", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -106,6 +106,7 @@ router.put('/:id', upload.single('manga_bg_img'), async (req, res) => {
     );
     res.sendStatus(204); // No content
   } catch (err) {
+    console.error("[Error updating manga]", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -114,8 +115,9 @@ router.put('/:id', upload.single('manga_bg_img'), async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     await db.execute('DELETE FROM mangas WHERE manga_id=?', [req.params.id]);
-    res.sendStatus(204);
+    res.sendStatus(204); // No content
   } catch (err) {
+    console.error("[Error deleting manga]", err.message);
     res.status(500).json({ error: err.message });
   }
 });
