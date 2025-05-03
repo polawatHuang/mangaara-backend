@@ -8,19 +8,22 @@ const fs = require('fs');
 // Set up multer to handle file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const mangaName = req.body.manga_name || 'default'; // Use manga_name or default
-    const dirPath = `/var/www/vhosts/mangaara.com/httpdocs/images/${mangaName}`;
+    // Sanitize manga_name to avoid special characters and spaces
+    const mangaName = req.body.manga_name ? req.body.manga_name.replace(/\s+/g, '_').toLowerCase() : 'default';
+    
+    // Create directory path dynamically under '/images/manga/{manga_name}/'
+    const dirPath = `/var/www/vhosts/mangaara.com/httpdocs/images/manga/${mangaName}`;
 
     // Create the directory if it does not exist
     fs.mkdirSync(dirPath, { recursive: true });
 
-    // Set the destination dynamically
+    // Set the destination for the image
     cb(null, dirPath);
   },
   filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(file.originalname); // Get file extension
     const fileName = Date.now() + ext; // Add timestamp to filename for uniqueness
-    cb(null, fileName);
+    cb(null, fileName); // Set the final filename
   }
 });
 
@@ -29,6 +32,7 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // Limit file size to 10MB
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
+    // Only allow jpg, jpeg, or png files
     if (ext === '.jpg' || ext === '.jpeg' || ext === '.png') {
       cb(null, true);
     } else {
@@ -40,7 +44,7 @@ const upload = multer({
 // Create Manga (with Image Upload)
 router.post('/', upload.single('manga_bg_img'), async (req, res) => {
   const { manga_name, manga_disc, manga_slug, tag_id } = req.body;
-  const manga_bg_img = req.file ? `/images/${manga_name}/${req.file.filename}` : null; // Save the image path
+  const manga_bg_img = req.file ? `/images/manga/${manga_name.replace(/\s+/g, '_').toLowerCase()}/${req.file.filename}` : null; // Save the image path
 
   try {
     const [result] = await db.execute(
@@ -93,7 +97,7 @@ router.get('/:id', async (req, res) => {
 // Update Manga (with Image Upload)
 router.put('/:id', upload.single('manga_bg_img'), async (req, res) => {
   const { manga_name, manga_disc, manga_slug, tag_id } = req.body;
-  const manga_bg_img = req.file ? `/images/${manga_name}/${req.file.filename}` : null;
+  const manga_bg_img = req.file ? `/images/manga/${manga_name.replace(/\s+/g, '_').toLowerCase()}/${req.file.filename}` : null;
 
   try {
     await db.execute(
