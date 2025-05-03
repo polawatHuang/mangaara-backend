@@ -6,8 +6,26 @@ const path = require('path');
 const fs = require('fs');
 
 // Set up multer to handle file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const mangaName = req.body.manga_name || 'default'; // Use manga_name or default
+    const dirPath = `/var/www/vhosts/mangaara.com/httpdocs/images/${mangaName}`;
+
+    // Create the directory if it does not exist
+    fs.mkdirSync(dirPath, { recursive: true });
+
+    // Set the destination dynamically
+    cb(null, dirPath);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname);
+    const fileName = Date.now() + ext; // Add timestamp to filename for uniqueness
+    cb(null, fileName);
+  }
+});
+
 const upload = multer({
-  dest: '/var/www/vhosts/mangaara.com/httpdocs/images/', // Plesk directory for image uploads
+  storage: storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // Limit file size to 10MB
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -22,7 +40,7 @@ const upload = multer({
 // Create Manga (with Image Upload)
 router.post('/', upload.single('manga_bg_img'), async (req, res) => {
   const { manga_name, manga_disc, manga_slug, tag_id } = req.body;
-  const manga_bg_img = req.file ? `/images/${req.file.filename}` : null; // Save the image path
+  const manga_bg_img = req.file ? `/images/${manga_name}/${req.file.filename}` : null; // Save the image path
 
   try {
     const [result] = await db.execute(
@@ -75,7 +93,7 @@ router.get('/:id', async (req, res) => {
 // Update Manga (with Image Upload)
 router.put('/:id', upload.single('manga_bg_img'), async (req, res) => {
   const { manga_name, manga_disc, manga_slug, tag_id } = req.body;
-  const manga_bg_img = req.file ? `/images/${req.file.filename}` : null;
+  const manga_bg_img = req.file ? `/images/${manga_name}/${req.file.filename}` : null;
 
   try {
     await db.execute(
