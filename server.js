@@ -7,7 +7,7 @@ const mangaRoutes = require('./routes/manga');
 const tagRoutes = require('./routes/tag');
 const logRoutes = require("./routes/logs");
 const { logRequest, logError } = require("./middleware/logger");
-const { requireAdmin } = require("./middleware/auth");
+// const { requireAdmin } = require("./middleware/auth");
 
 const app = express();
 const PORT = 443;
@@ -42,7 +42,7 @@ app.use(logRequest);
 // ✅ Main API Routes
 app.use('/api/mangas', mangaRoutes);
 app.use('/api/tags', tagRoutes);
-app.use('/api/logs', requireAdmin, logRoutes); // Uncomment if you want to require admin for logs
+app.use('/api/logs', logRoutes); // Uncomment if you want to require admin for logs
 
 // ✅ Fallback 404 for undefined routes
 app.use((req, res) => {
