@@ -4,6 +4,7 @@ const router = express.Router();
 const db = require('../db');
 const path = require('path');
 const fs = require('fs');
+const { safeJsonArray } = require('../libs/safeJsonArray');
 
 // Set up multer to handle file uploads
 const storage = multer.diskStorage({
@@ -75,7 +76,16 @@ router.get('/', async (req, res) => {
       ORDER BY created_at DESC
     `);
 
-    res.json(rows);
+    // Post-process `tag_id` and `ep` to turn stringified arrays into actual arrays
+    const processed = rows.map((manga) => {
+      return {
+        ...manga,
+        tag_id: safeJsonArray(manga.tag_id),
+        ep: safeJsonArray(manga.ep),
+      };
+    });
+
+    res.json(processed);
   } catch (err) {
     console.error("[Error fetching mangas]", err.message);
     res.status(500).json({ error: err.message });
