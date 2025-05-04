@@ -4,7 +4,16 @@ const router = express.Router();
 const db = require('../db');
 const path = require('path');
 const fs = require('fs');
-const { safeJsonArray } = require('../libs/safeJsonArray');
+
+const safeJsonArray = (input) => {
+  try {
+    // Parse the input as a JSON array
+    return JSON.parse(input);
+  } catch (err) {
+    // If there's an error (e.g., malformed JSON), return an empty array
+    return [];
+  }
+}
 
 // Set up multer to handle file uploads
 const storage = multer.diskStorage({
