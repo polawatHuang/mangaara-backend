@@ -6,15 +6,15 @@ const path = require('path');
 const fs = require('fs');
 
 // Helper function to safely parse JSON strings into arrays
-const safeJsonArray = (input) => {
-  try {
-    // Parse the input as a JSON array
-    return JSON.parse(input);
-  } catch (err) {
-    // If there's an error (e.g., malformed JSON), return an empty array
-    return [];
-  }
-}
+// const safeJsonArray = (input) => {
+//   try {
+//     // Parse the input as a JSON array
+//     return JSON.parse(input);
+//   } catch (err) {
+//     // If there's an error (e.g., malformed JSON), return an empty array
+//     return [];
+//   }
+// }
 
 // Set up multer to handle file uploads
 const storage = multer.diskStorage({
