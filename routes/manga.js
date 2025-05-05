@@ -92,13 +92,13 @@ router.get('/', async (req, res) => {
     `);
 
     // Post-process `tag_id` and `ep` to turn stringified arrays into actual arrays
-    const processed = rows.map((manga) => {
-      return {
-        ...manga,
-        tag_id: safeJsonArray(manga.tag_id),  // Parse tag_id JSON string to array
-        ep: safeJsonArray(manga.ep),  // Parse ep JSON string to array
-      };
-    });
+    // const processed = rows.map((manga) => {
+    //   return {
+    //     ...manga,
+    //     tag_id: safeJsonArray(manga.tag_id),  // Parse tag_id JSON string to array
+    //     ep: safeJsonArray(manga.ep),  // Parse ep JSON string to array
+    //   };
+    // });
 
     res.json(processed);
   } catch (err) {
