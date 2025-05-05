@@ -5,6 +5,7 @@ const db = require('../db');
 const path = require('path');
 const fs = require('fs');
 
+// Helper function to safely parse JSON strings into arrays
 const safeJsonArray = (input) => {
   try {
     // Parse the input as a JSON array
@@ -50,13 +51,18 @@ const upload = multer({
 
 // Create Manga (with Image Upload)
 router.post('/', upload.single('manga_bg_img'), async (req, res) => {
-  const { manga_name, manga_disc, manga_slug, tag_id } = req.body;
+  const { manga_name, manga_disc, manga_slug, tag_id, ep } = req.body;
+
+  // Convert tag_id and ep to JSON strings
+  const tagArray = Array.isArray(tag_id) ? JSON.stringify(tag_id) : JSON.stringify([]);
+  const epArray = Array.isArray(ep) ? JSON.stringify(ep) : JSON.stringify([]);
+
   const manga_bg_img = req.file ? `/images/manga/${manga_name.replace(/\s+/g, '_').toLowerCase()}/${req.file.filename}` : null; // Save the image path
 
   try {
     const [result] = await db.execute(
-      'INSERT INTO mangas (manga_name, manga_disc, manga_bg_img, manga_slug, tag_id) VALUES (?, ?, ?, ?, ?)',
-      [manga_name, manga_disc, manga_bg_img, manga_slug, tag_id]
+      'INSERT INTO mangas (manga_name, manga_disc, manga_bg_img, manga_slug, tag_id, ep) VALUES (?, ?, ?, ?, ?, ?)',
+      [manga_name, manga_disc, manga_bg_img, manga_slug, tagArray, epArray]
     );
 
     res.status(201).json({ id: result.insertId, manga_bg_img });
@@ -89,8 +95,8 @@ router.get('/', async (req, res) => {
     const processed = rows.map((manga) => {
       return {
         ...manga,
-        tag_id: safeJsonArray(manga.tag_id),
-        ep: safeJsonArray(manga.ep),
+        tag_id: safeJsonArray(manga.tag_id),  // Parse tag_id JSON string to array
+        ep: safeJsonArray(manga.ep),  // Parse ep JSON string to array
       };
     });
 
@@ -115,13 +121,18 @@ router.get('/:id', async (req, res) => {
 
 // Update Manga (with Image Upload)
 router.put('/:id', upload.single('manga_bg_img'), async (req, res) => {
-  const { manga_name, manga_disc, manga_slug, tag_id } = req.body;
+  const { manga_name, manga_disc, manga_slug, tag_id, ep } = req.body;
+
+  // Convert tag_id and ep to JSON strings
+  const tagArray = Array.isArray(tag_id) ? JSON.stringify(tag_id) : JSON.stringify([]);
+  const epArray = Array.isArray(ep) ? JSON.stringify(ep) : JSON.stringify([]);
+
   const manga_bg_img = req.file ? `/images/manga/${manga_name.replace(/\s+/g, '_').toLowerCase()}/${req.file.filename}` : null;
 
   try {
     await db.execute(
-      'UPDATE mangas SET manga_name=?, manga_disc=?, manga_bg_img=?, manga_slug=?, tag_id=? WHERE manga_id=?',
-      [manga_name, manga_disc, manga_bg_img, manga_slug, tag_id, req.params.id]
+      'UPDATE mangas SET manga_name=?, manga_disc=?, manga_bg_img=?, manga_slug=?, tag_id=?, ep=? WHERE manga_id=?',
+      [manga_name, manga_disc, manga_bg_img, manga_slug, tagArray, epArray, req.params.id]
     );
     res.sendStatus(204); // No content
   } catch (err) {
