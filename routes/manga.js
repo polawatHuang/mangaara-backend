@@ -185,7 +185,7 @@ const uploadEpisode = multer({
 });
 
 // Create Episode (with multiple image uploads)
-router.post('/', uploadEpisode.array('episode_images'), async (req, res) => {
+router.post('/episode', uploadEpisode.array('episode_images'), async (req, res) => {
   const { manga_id, episode_number } = req.body;
   const imagePaths = req.files.map(file => `/images/manga/${req.body.manga_name.replace(/\s+/g, '_').toLowerCase()}/ep${episode_number}/${file.filename}`);
 
