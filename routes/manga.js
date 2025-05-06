@@ -152,4 +152,63 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Update episode
+const storageEpisode = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const mangaName = req.body.manga_name ? req.body.manga_name.replace(/\s+/g, '_').toLowerCase() : 'default';
+    const episodeDir = `/var/www/vhosts/mangaara.com/httpdocs/images/manga/${mangaName}/ep${req.body.episode_number}`;
+
+    // Create the directory if it does not exist
+    fs.mkdirSync(episodeDir, { recursive: true });
+
+    // Set the destination for the image
+    cb(null, episodeDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname); // Get file extension
+    const fileName = Date.now() + ext; // Add timestamp to filename for uniqueness
+    cb(null, fileName); // Set the final filename
+  }
+});
+
+const uploadEpisode = multer({
+  storage: storageEpisode,
+  limits: { fileSize: 10 * 1024 * 1024 }, // Limit file size to 10MB
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === '.jpg' || ext === '.jpeg' || ext === '.png') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only .jpg, .jpeg, .png files are allowed.'));
+    }
+  }
+});
+
+// Create Episode (with multiple image uploads)
+router.post('/', uploadEpisode.array('episode_images'), async (req, res) => {
+  const { manga_id, episode_number } = req.body;
+  const imagePaths = req.files.map(file => `/images/manga/${req.body.manga_name.replace(/\s+/g, '_').toLowerCase()}/ep${episode_number}/${file.filename}`);
+
+  // Prepare the episode data to update the `mangas` table
+  const newEpisode = {
+    episode: parseInt(episode_number),
+    totalPage: req.files.length, // The number of images can represent total pages
+    created_at: new Date(),
+  };
+
+  try {
+    // Update the `ep` field in the `mangas` table
+    const [result] = await db.execute(
+      'UPDATE mangas SET ep = JSON_ARRAY_APPEND(ep, "$", ?) WHERE manga_id = ?',
+      [JSON.stringify(newEpisode), manga_id]
+    );
+
+    // Return the success response with episode image paths
+    res.status(201).json({ message: 'Episode created successfully', images: imagePaths });
+  } catch (err) {
+    console.error('[Error creating episode]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
