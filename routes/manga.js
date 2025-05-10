@@ -153,27 +153,26 @@ router.delete('/:id', async (req, res) => {
 });
 
 // Update episode
-const storageEpisode = multer.diskStorage({
+// Set up multer to handle file uploads for episodes
+const storageForEP = multer.diskStorage({
   destination: function (req, file, cb) {
-    const mangaName = req.body.manga_name ? req.body.manga_name.replace(/\s+/g, '_').toLowerCase() : 'default';
-    const episodeDir = `/var/www/vhosts/mangaara.com/httpdocs/images/manga/${mangaName}/ep${req.body.episode_number}`;
+    const { manga_name, episode_number } = req.body;
+    const sanitizedMangaName = manga_name.replace(/\s+/g, '_').toLowerCase();
+    const epDirectory = `/var/www/vhosts/mangaara.com/httpdocs/images/manga/${sanitizedMangaName}/ep${episode_number}`;
 
-    // Create the directory if it does not exist
-    fs.mkdirSync(episodeDir, { recursive: true });
-
-    // Set the destination for the image
-    cb(null, episodeDir);
+    fs.mkdirSync(epDirectory, { recursive: true });
+    cb(null, epDirectory);  // Set the destination folder for episode images
   },
   filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname); // Get file extension
-    const fileName = Date.now() + ext; // Add timestamp to filename for uniqueness
-    cb(null, fileName); // Set the final filename
+    const ext = path.extname(file.originalname);
+    const fileName = Date.now() + ext;  // Add timestamp to ensure unique filenames
+    cb(null, fileName);  // Set the final filename for the uploaded file
   }
 });
 
-const uploadEpisode = multer({
-  storage: storageEpisode,
-  limits: { fileSize: 10 * 1024 * 1024 }, // Limit file size to 10MB
+const uploadForEP = multer({
+  storage: storageForEP,
+  limits: { fileSize: 10 * 1024 * 1024 },  // Max file size 10MB
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (ext === '.jpg' || ext === '.jpeg' || ext === '.png') {
@@ -184,29 +183,44 @@ const uploadEpisode = multer({
   }
 });
 
-// Create Episode (with multiple image uploads)
-router.post('/episode', uploadEpisode.array('episode_images'), async (req, res) => {
-  const { manga_id, episode_number } = req.body;
-  const imagePaths = req.files.map(file => `/images/manga/${req.body.manga_name.replace(/\s+/g, '_').toLowerCase()}/ep${episode_number}/${file.filename}`);
+// API for creating an episode and updating 'ep' in 'mangas'
+router.post('/episode', uploadForEP.array('episode_images', 10), async (req, res) => {
+  const { manga_name, episode_number, totalPage } = req.body;
 
-  // Prepare the episode data to update the `mangas` table
-  const newEpisode = {
-    episode: parseInt(episode_number),
-    totalPage: req.files.length, // The number of images can represent total pages
-    created_at: new Date(),
+  if (!manga_name || !episode_number || !totalPage || req.files.length === 0) {
+    return res.status(400).json({ error: 'Invalid request data' });
+  }
+
+  const imagePaths = req.files.map(file => `/images/manga/${manga_name.replace(/\s+/g, '_').toLowerCase()}/ep${episode_number}/${file.filename}`);
+
+  // Prepare the new episode data
+  const episodeDetails = {
+    episode: episode_number,
+    totalPage: totalPage,
+    created_at: new Date().toISOString(),
+    images: imagePaths
   };
 
   try {
-    // Update the `ep` field in the `mangas` table
-    const [result] = await db.execute(
-      'UPDATE mangas SET ep = JSON_ARRAY_APPEND(ep, "$", ?) WHERE manga_id = ?',
-      [JSON.stringify(newEpisode), manga_id]
-    );
+    // Fetch existing episode data from the 'mangas' table
+    const [mangaRows] = await db.execute('SELECT ep FROM mangas WHERE manga_name = ?', [manga_name]);
 
-    // Return the success response with episode image paths
-    res.status(201).json({ message: 'Episode created successfully', images: imagePaths });
+    let newEpData = [];
+    if (mangaRows.length > 0) {
+      // If episodes exist, parse the 'ep' field and add the new episode
+      newEpData = JSON.parse(mangaRows[0].ep);
+      newEpData.push(episodeDetails);  // Add new episode
+    } else {
+      // If no episodes exist, initialize the array with the new episode
+      newEpData = [episodeDetails];
+    }
+
+    // Update the 'ep' column in the 'mangas' table with the new episode data
+    await db.execute('UPDATE mangas SET ep = ? WHERE manga_name = ?', [JSON.stringify(newEpData), manga_name]);
+
+    res.status(201).json({ message: 'Episode created successfully!', episodeDetails });
   } catch (err) {
-    console.error('[Error creating episode]', err.message);
+    console.error('[Error uploading episode]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
