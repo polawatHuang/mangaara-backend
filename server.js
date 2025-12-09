@@ -17,6 +17,7 @@ const userRoutes = require("./routes/users");
 const favoriteRoutes = require("./routes/favorites");
 const uploadRoute = require("./routes/upload");
 const testConnectionRoute = require("./routes/test-connection");
+const statusRoutes = require("./routes/status");
 const { logRequest, logError } = require("./middleware/logger");
 // const { requireAdmin } = require("./middleware/auth");
 
@@ -65,6 +66,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/upload', uploadRoute);
 app.use('/api/test-connection', testConnectionRoute);
+app.use('/api/status', statusRoutes);
 app.use('/api/logs', logRoutes); // Uncomment if you want to require admin for logs
 
 // ✅ Fallback 404 for undefined routes
