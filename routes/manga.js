@@ -51,18 +51,17 @@ const upload = multer({
 
 // Create Manga (with Image Upload)
 router.post('/', upload.single('manga_bg_img'), async (req, res) => {
-  const { manga_name, manga_disc, manga_slug, tag_id, ep } = req.body;
+  const { manga_name, manga_disc, manga_slug, tag_id } = req.body;
 
-  // Convert tag_id and ep to JSON strings
+  // Convert tag_id to JSON string
   const tagArray = Array.isArray(tag_id) ? JSON.stringify(tag_id) : JSON.stringify([]);
-  const epArray = Array.isArray(ep) ? JSON.stringify(ep) : JSON.stringify([]);
 
   const manga_bg_img = req.file ? `/images/manga/${manga_name.replace(/\s+/g, '_').toLowerCase()}/${req.file.filename}` : null; // Save the image path
 
   try {
     const [result] = await db.execute(
-      'INSERT INTO mangas (manga_name, manga_disc, manga_bg_img, manga_slug, tag_id, ep) VALUES (?, ?, ?, ?, ?, ?)',
-      [manga_name, manga_disc, manga_bg_img, manga_slug, tagArray, epArray]
+      'INSERT INTO manga (manga_name, manga_disc, manga_bg_img, manga_slug, tag_id) VALUES (?, ?, ?, ?, ?)',
+      [manga_name, manga_disc, manga_bg_img, manga_slug, tagArray]
     );
 
     res.status(201).json({ id: result.insertId, manga_bg_img });
@@ -77,26 +76,39 @@ router.get('/', async (req, res) => {
   try {
     const [rows] = await db.execute(`
       SELECT 
-        manga_id,
-        manga_name,
-        manga_disc,
-        manga_bg_img,
-        view,
-        created_at,
-        updated_at,
-        manga_slug,
-        tag_id,
-        ep
-      FROM mangas
-      ORDER BY created_at DESC
+        m.manga_id,
+        m.manga_name,
+        m.manga_disc,
+        m.manga_bg_img,
+        m.view,
+        m.created_at,
+        m.updated_at,
+        m.manga_slug,
+        m.tag_id,
+        COUNT(me.id) as episode_count,
+        MAX(me.created_date) as last_episode_date,
+        JSON_ARRAYAGG(
+          JSON_OBJECT(
+            'episode', me.episode,
+            'episode_name', me.episode_name,
+            'view', me.view,
+            'total_pages', me.total_pages,
+            'created_date', me.created_date,
+            'updated_date', me.updated_date
+          )
+        ) as ep
+      FROM manga m
+      LEFT JOIN manga_episodes me ON m.manga_id = me.manga_id
+      GROUP BY m.manga_id
+      ORDER BY m.created_at DESC
     `);
 
-    // Post-process `tag_id` and `ep` to turn stringified arrays into actual arrays
+    // Post-process to handle null episodes
     const processed = rows.map((manga) => {
       return {
         ...manga,
-        tag_id: manga.tag_id,  // Parse tag_id JSON string to array
-        ep: manga.ep,  // Parse ep JSON string to array
+        tag_id: manga.tag_id,
+        ep: manga.episode_count > 0 ? manga.ep : [],
       };
     });
 
@@ -107,12 +119,43 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Read One Manga (Image URL)
+// Read One Manga by ID with episodes (Image URL)
 router.get('/:id', async (req, res) => {
   try {
-    const [rows] = await db.execute('SELECT * FROM mangas WHERE manga_id = ?', [req.params.id]);
+    const [rows] = await db.execute(`
+      SELECT 
+        m.manga_id,
+        m.manga_name,
+        m.manga_slug,
+        m.manga_disc,
+        m.manga_bg_img,
+        m.tag_id,
+        m.view as manga_view,
+        m.created_at,
+        m.updated_at,
+        JSON_ARRAYAGG(
+          JSON_OBJECT(
+            'episode', me.episode,
+            'episode_name', me.episode_name,
+            'view', me.view,
+            'total_pages', me.total_pages,
+            'created_date', me.created_date,
+            'updated_date', me.updated_date
+          )
+        ) as ep
+      FROM manga m
+      LEFT JOIN manga_episodes me ON m.manga_id = me.manga_id
+      WHERE m.manga_id = ?
+      GROUP BY m.manga_id
+    `, [req.params.id]);
+    
     if (rows.length === 0) return res.status(404).json({ error: 'Manga not found' });
-    res.json(rows[0]);
+    
+    // Handle null episodes
+    const manga = rows[0];
+    manga.ep = manga.ep && manga.ep[0].episode !== null ? manga.ep : [];
+    
+    res.json(manga);
   } catch (err) {
     console.error("[Error fetching manga]", err.message);
     res.status(500).json({ error: err.message });
@@ -121,18 +164,43 @@ router.get('/:id', async (req, res) => {
 
 // Update Manga (with Image Upload)
 router.put('/:id', upload.single('manga_bg_img'), async (req, res) => {
-  const { manga_name, manga_disc, manga_slug, tag_id, ep } = req.body;
+  const { manga_name, manga_disc, manga_slug, tag_id } = req.body;
 
-  // Convert tag_id and ep to JSON strings
+  // Convert tag_id to JSON string
   const tagArray = Array.isArray(tag_id) ? JSON.stringify(tag_id) : JSON.stringify([]);
-  const epArray = Array.isArray(ep) ? JSON.stringify(ep) : JSON.stringify([]);
 
   const manga_bg_img = req.file ? `/images/manga/${manga_name.replace(/\s+/g, '_').toLowerCase()}/${req.file.filename}` : null;
 
   try {
+    const updateFields = [];
+    const updateValues = [];
+
+    if (manga_name) {
+      updateFields.push('manga_name=?');
+      updateValues.push(manga_name);
+    }
+    if (manga_disc) {
+      updateFields.push('manga_disc=?');
+      updateValues.push(manga_disc);
+    }
+    if (manga_bg_img) {
+      updateFields.push('manga_bg_img=?');
+      updateValues.push(manga_bg_img);
+    }
+    if (manga_slug) {
+      updateFields.push('manga_slug=?');
+      updateValues.push(manga_slug);
+    }
+    if (tag_id) {
+      updateFields.push('tag_id=?');
+      updateValues.push(tagArray);
+    }
+
+    updateValues.push(req.params.id);
+
     await db.execute(
-      'UPDATE mangas SET manga_name=?, manga_disc=?, manga_bg_img=?, manga_slug=?, tag_id=?, ep=? WHERE manga_id=?',
-      [manga_name, manga_disc, manga_bg_img, manga_slug, tagArray, epArray, req.params.id]
+      `UPDATE manga SET ${updateFields.join(', ')} WHERE manga_id=?`,
+      updateValues
     );
     res.sendStatus(204); // No content
   } catch (err) {
@@ -144,7 +212,7 @@ router.put('/:id', upload.single('manga_bg_img'), async (req, res) => {
 // Delete Manga
 router.delete('/:id', async (req, res) => {
   try {
-    await db.execute('DELETE FROM mangas WHERE manga_id=?', [req.params.id]);
+    await db.execute('DELETE FROM manga WHERE manga_id=?', [req.params.id]);
     res.sendStatus(204); // No content
   } catch (err) {
     console.error("[Error deleting manga]", err.message);
@@ -152,75 +220,123 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Update episode
-// Set up multer to handle file uploads for episodes
-const storageForEP = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const { manga_name, episode_number } = req.body;
-    const sanitizedMangaName = manga_name.replace(/\s+/g, '_').toLowerCase();
-    const epDirectory = `/var/www/vhosts/mangaara.com/httpdocs/images/manga/${sanitizedMangaName}/ep${episode_number}`;
-
-    fs.mkdirSync(epDirectory, { recursive: true });
-    cb(null, epDirectory);  // Set the destination folder for episode images
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    const fileName = Date.now() + ext;  // Add timestamp to ensure unique filenames
-    cb(null, fileName);  // Set the final filename for the uploaded file
-  }
-});
-
-const uploadForEP = multer({
-  storage: storageForEP,
-  limits: { fileSize: 10 * 1024 * 1024 },  // Max file size 10MB
-  fileFilter: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (ext === '.jpg' || ext === '.jpeg' || ext === '.png') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only .jpg, .jpeg, .png files are allowed.'));
-    }
-  }
-});
-
-// API for creating an episode and updating 'ep' in 'mangas'
-router.post('/episode', uploadForEP.array('episode_images', 10), async (req, res) => {
-  const { manga_name, episode_number, totalPage } = req.body;
-
-  if (!manga_name || !episode_number || !totalPage || req.files.length === 0) {
-    return res.status(400).json({ error: 'Invalid request data' });
-  }
-
-  const imagePaths = req.files.map(file => `/images/manga/${manga_name.replace(/\s+/g, '_').toLowerCase()}/ep${episode_number}/${file.filename}`);
-
-  // Prepare the new episode data
-  const episodeDetails = {
-    episode: episode_number,
-    totalPage: totalPage,
-    created_at: new Date().toISOString(),
-    images: imagePaths
-  };
-
+// Get manga by slug
+router.get('/slug/:slug', async (req, res) => {
   try {
-    // Fetch existing episode data from the 'mangas' table
-    const [mangaRows] = await db.execute('SELECT ep FROM mangas WHERE manga_name = ?', [manga_name]);
-
-    let newEpData = [];
-    if (mangaRows.length > 0) {
-      // If episodes exist, parse the 'ep' field and add the new episode
-      newEpData = JSON.parse(mangaRows[0].ep);
-      newEpData.push(episodeDetails);  // Add new episode
-    } else {
-      // If no episodes exist, initialize the array with the new episode
-      newEpData = [episodeDetails];
-    }
-
-    // Update the 'ep' column in the 'mangas' table with the new episode data
-    await db.execute('UPDATE mangas SET ep = ? WHERE manga_name = ?', [JSON.stringify(newEpData), manga_name]);
-
-    res.status(201).json({ message: 'Episode created successfully!', episodeDetails });
+    const [rows] = await db.execute(`
+      SELECT 
+        m.manga_id,
+        m.manga_name,
+        m.manga_slug,
+        m.manga_disc,
+        m.manga_bg_img,
+        m.tag_id,
+        m.view as manga_view,
+        m.created_at,
+        m.updated_at,
+        JSON_ARRAYAGG(
+          JSON_OBJECT(
+            'episode', me.episode,
+            'episode_name', me.episode_name,
+            'view', me.view,
+            'total_pages', me.total_pages,
+            'created_date', me.created_date,
+            'updated_date', me.updated_date
+          )
+        ) as ep
+      FROM manga m
+      LEFT JOIN manga_episodes me ON m.manga_id = me.manga_id
+      WHERE m.manga_slug = ?
+      GROUP BY m.manga_id
+    `, [req.params.slug]);
+    
+    if (rows.length === 0) return res.status(404).json({ error: 'Manga not found' });
+    
+    const manga = rows[0];
+    manga.ep = manga.ep && manga.ep[0].episode !== null ? manga.ep : [];
+    
+    res.json(manga);
   } catch (err) {
-    console.error('[Error uploading episode]', err.message);
+    console.error("[Error fetching manga by slug]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Increment manga view count
+router.post('/:id/view', async (req, res) => {
+  try {
+    await db.execute('UPDATE manga SET view = view + 1 WHERE manga_id = ?', [req.params.id]);
+    res.sendStatus(204);
+  } catch (err) {
+    console.error("[Error incrementing view]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get most viewed manga
+router.get('/trending/top', async (req, res) => {
+  const limit = parseInt(req.query.limit) || 10;
+  try {
+    const [rows] = await db.execute(`
+      SELECT 
+        manga_id,
+        manga_name,
+        manga_slug,
+        manga_bg_img,
+        view,
+        tag_id
+      FROM manga
+      ORDER BY view DESC
+      LIMIT ?
+    `, [limit]);
+    res.json(rows);
+  } catch (err) {
+    console.error("[Error fetching trending manga]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Search manga by name
+router.get('/search/:query', async (req, res) => {
+  const searchQuery = `%${req.params.query}%`;
+  try {
+    const [rows] = await db.execute(`
+      SELECT 
+        manga_id,
+        manga_name,
+        manga_slug,
+        manga_bg_img,
+        view,
+        tag_id
+      FROM manga
+      WHERE manga_name LIKE ?
+      ORDER BY view DESC
+    `, [searchQuery]);
+    res.json(rows);
+  } catch (err) {
+    console.error("[Error searching manga]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get manga by tag
+router.get('/tag/:tagName', async (req, res) => {
+  try {
+    const [rows] = await db.execute(`
+      SELECT 
+        manga_id,
+        manga_name,
+        manga_slug,
+        manga_bg_img,
+        tag_id,
+        view
+      FROM manga
+      WHERE JSON_CONTAINS(tag_id, ?)
+      ORDER BY view DESC
+    `, [JSON.stringify(req.params.tagName)]);
+    res.json(rows);
+  } catch (err) {
+    console.error("[Error fetching manga by tag]", err.message);
     res.status(500).json({ error: err.message });
   }
 });
