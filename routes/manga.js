@@ -228,9 +228,9 @@ router.get('/:id', async (req, res) => {
 });
 
 // Update Manga (with Image Upload)
-router.put('/:id?', upload.single('manga_bg_img'), async (req, res) => {
+router.put('/', upload.single('manga_bg_img'), async (req, res) => {
   const { id, manga_id, manga_name, manga_disc, manga_slug, tag_id } = req.body;
-  const mangaId = req.params.id || id || manga_id;
+  const mangaId = id || manga_id;
   
   if (!mangaId) {
     return res.status(400).json({ error: 'Manga ID is required' });
@@ -296,13 +296,100 @@ router.put('/:id?', upload.single('manga_bg_img'), async (req, res) => {
   }
 });
 
-// Delete Manga
-router.delete('/:id?', async (req, res) => {
-  const mangaId = req.params.id || req.body.id;
+// Update Manga by ID in path (with Image Upload)
+router.put('/:id', upload.single('manga_bg_img'), async (req, res) => {
+  const { manga_name, manga_disc, manga_slug, tag_id } = req.body;
+  const mangaId = req.params.id;
+  
+  // Convert tag_id to JSON string (handle both array and string formats)
+  let tagArray;
+  if (Array.isArray(tag_id)) {
+    tagArray = JSON.stringify(tag_id);
+  } else if (typeof tag_id === 'string') {
+    try {
+      const parsed = JSON.parse(tag_id);
+      tagArray = JSON.stringify(parsed);
+    } catch {
+      tagArray = JSON.stringify([tag_id]);
+    }
+  } else {
+    tagArray = JSON.stringify([]);
+  }
+
+  const manga_bg_img = req.file ? `/images/${manga_slug}/${req.file.filename}` : null;
+
+  try {
+    const updateFields = [];
+    const updateValues = [];
+
+    if (manga_name) {
+      updateFields.push('manga_name=?');
+      updateValues.push(manga_name);
+    }
+    if (manga_disc) {
+      updateFields.push('manga_disc=?');
+      updateValues.push(manga_disc);
+    }
+    if (manga_slug) {
+      updateFields.push('manga_slug=?');
+      updateValues.push(manga_slug);
+    }
+    if (tag_id !== undefined) {
+      updateFields.push('tag_id=?');
+      updateValues.push(tagArray);
+    }
+    if (manga_bg_img) {
+      updateFields.push('manga_bg_img=?');
+      updateValues.push(manga_bg_img);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updateValues.push(mangaId);
+
+    const [result] = await db.execute(
+      `UPDATE manga SET ${updateFields.join(', ')} WHERE manga_id=?`,
+      updateValues
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Manga not found' });
+    }
+    
+    res.json({ message: 'Manga updated successfully' });
+  } catch (err) {
+    console.error("[Error updating manga]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete Manga - ID in body
+router.delete('/', async (req, res) => {
+  const mangaId = req.body.id;
   
   if (!mangaId) {
     return res.status(400).json({ error: 'Manga ID is required' });
   }
+  
+  try {
+    const [result] = await db.execute('DELETE FROM manga WHERE manga_id=?', [mangaId]);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Manga not found' });
+    }
+    
+    res.json({ message: 'Manga deleted successfully' });
+  } catch (err) {
+    console.error("[Error deleting manga]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete Manga - ID in path
+router.delete('/:id', async (req, res) => {
+  const mangaId = req.params.id;
   
   try {
     const [result] = await db.execute('DELETE FROM manga WHERE manga_id=?', [mangaId]);
