@@ -5,6 +5,8 @@ const db = require('../db');
 const path = require('path');
 const fs = require('fs');
 
+const UPLOAD_BASE_PATH = process.env.UPLOAD_BASE_PATH || '/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images';
+
 // Set up multer to handle file uploads for episodes
 const storageForEP = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -12,7 +14,7 @@ const storageForEP = multer.diskStorage({
     // Support both manga_slug and manga_name (for backward compatibility)
     const slug = manga_slug || manga_name;
     const epNum = episode || episode_number;
-    const epDirectory = `/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images/${slug}/ep${epNum}`;
+    const epDirectory = `${UPLOAD_BASE_PATH}/${slug}/ep${epNum}`;
 
     fs.mkdirSync(epDirectory, { recursive: true });
     cb(null, epDirectory);

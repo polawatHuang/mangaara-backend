@@ -4,6 +4,8 @@ const db = require('../db');
 const fs = require('fs');
 const path = require('path');
 
+const UPLOAD_BASE_PATH = process.env.UPLOAD_BASE_PATH || '/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images';
+
 // Health check and status monitoring endpoint
 router.get('/', async (req, res) => {
   const status = {
@@ -22,7 +24,7 @@ router.get('/', async (req, res) => {
     },
     storage: {
       status: 'unknown',
-      path: '/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images',
+      path: UPLOAD_BASE_PATH,
       accessible: false,
       error: null
     },
@@ -170,7 +172,7 @@ router.get('/storage', async (req, res) => {
   const storageStatus = {
     status: 'unknown',
     timestamp: new Date().toISOString(),
-    basePath: '/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images',
+    basePath: UPLOAD_BASE_PATH,
     directories: [],
     error: null
   };

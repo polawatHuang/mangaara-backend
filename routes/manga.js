@@ -5,6 +5,8 @@ const db = require('../db');
 const path = require('path');
 const fs = require('fs');
 
+const UPLOAD_BASE_PATH = process.env.UPLOAD_BASE_PATH || '/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images';
+
 // Helper function to safely parse JSON strings into arrays
 // const safeJsonArray = (input) => {
 //   try {

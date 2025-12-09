@@ -4,7 +4,9 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 
-// Set up multer for general file uploads
+const UPLOAD_BASE_PATH = process.env.UPLOAD_BASE_PATH || '/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images';
+
+// Configure multer for general file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const folder = req.body.folder || 'uploads';

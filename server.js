@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -22,15 +23,15 @@ const { logRequest, logError } = require("./middleware/logger");
 // const { requireAdmin } = require("./middleware/auth");
 
 const app = express();
-const PORT = 443;
+const PORT = process.env.PORT || 443;
 
 // ✅ Trust proxy if using reverse proxy or HTTPS
 app.set('trust proxy', 1);
 
 // ✅ Rate limiting
 const limiter = rateLimit({
-  windowMs: 50 * 60 * 1000, // 50 minutes
-  max: 1000, // Limit to 1000 requests per IP
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 50 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
   message: "Too many requests, please try again later.",
 });
 
@@ -40,8 +41,9 @@ app.use(limiter);
 app.use(helmet());
 
 // ✅ CORS: Restrict to known domains
+const allowedOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : ["https://www.mangaara.com", "https://mangaara.vercel.app"];
 app.use(cors({
-  origin: ["https://www.mangaara.com", "https://mangaara.vercel.app"], // Update with your valid domains
+  origin: allowedOrigins,
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 

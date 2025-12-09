@@ -60,7 +60,7 @@ function requireAdmin(req, res, next) {
     const apiKey = req.headers['x-api-key'];
     const validToken = process.env.ADMIN_API_KEY;
 
-    if (apiKey && apiKey === validToken) {
+    if (apiKey && validToken && apiKey === validToken) {
         return next();
     }
 

@@ -5,10 +5,12 @@ const db = require('../db');
 const path = require('path');
 const fs = require('fs');
 
+const UPLOAD_BASE_PATH = process.env.UPLOAD_BASE_PATH || '/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images';
+
 // Set up multer for background image upload
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const dirPath = `/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images/recommend`;
+    const dirPath = `${UPLOAD_BASE_PATH}/recommend`;
     fs.mkdirSync(dirPath, { recursive: true });
     cb(null, dirPath);
   },

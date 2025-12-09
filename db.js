@@ -1,13 +1,14 @@
 // db.js
+require('dotenv').config();
 const mysql = require('mysql2');
 
 const pool = mysql.createPool({
-  host: 'localhost',
-  user: 'cipacmeet_manga',
-  password: 'Betterlife-2025',
-  database: 'cipacmeet_manga',
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'cipacmeet_manga',
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME || 'cipacmeet_manga',
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0
