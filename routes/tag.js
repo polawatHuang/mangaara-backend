@@ -5,14 +5,26 @@ const db = require("../db");
 
 // Create a new tag
 router.post("/", async (req, res) => {
-  const { tag_name } = req.body;
+  const { name, tag_name } = req.body;
+  const tagName = name || tag_name; // Support both 'name' and 'tag_name'
+  
+  if (!tagName) {
+    return res.status(400).json({ error: "Tag name is required" });
+  }
+  
   try {
     const [result] = await db.execute(
       "INSERT INTO tags (tag_name) VALUES (?)",
-      [tag_name]
+      [tagName]
     );
-    res.status(201).json({ id: result.insertId });
+    res.status(200).json({ 
+      tag_id: result.insertId,
+      name: tagName
+    });
   } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: "Tag already exists" });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -20,7 +32,7 @@ router.post("/", async (req, res) => {
 // Read all tags
 router.get("/", async (req, res) => {
   try {
-    const [rows] = await db.execute("SELECT * FROM tags ORDER BY tag_id DESC");
+    const [rows] = await db.execute("SELECT tag_id, tag_name as name, created_at FROM tags ORDER BY tag_id DESC");
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -57,8 +69,13 @@ router.put("/:id", async (req, res) => {
 // Delete tag
 router.delete("/:id", async (req, res) => {
   try {
-    await db.execute("DELETE FROM tags WHERE tag_id = ?", [req.params.id]);
-    res.sendStatus(204);
+    const [result] = await db.execute("DELETE FROM tags WHERE tag_id = ?", [req.params.id]);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Tag not found" });
+    }
+    
+    res.json({ message: "Tag deleted successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

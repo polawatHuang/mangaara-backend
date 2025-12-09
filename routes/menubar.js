@@ -16,7 +16,12 @@ router.post('/', async (req, res) => {
       [name, href, id || null, is_active !== undefined ? is_active : true]
     );
 
-    res.status(201).json({ menu_id: result.insertId, message: 'Menu item created successfully' });
+    res.status(200).json({ 
+      menu_id: result.insertId, 
+      name,
+      href,
+      is_active: is_active !== undefined ? is_active : true
+    });
   } catch (err) {
     console.error("[Error creating menu item]", err.message);
     res.status(500).json({ error: err.message });
@@ -120,8 +125,13 @@ router.patch('/:menu_id/toggle', async (req, res) => {
 // Delete a menu item
 router.delete('/:menu_id', async (req, res) => {
   try {
-    await db.execute('DELETE FROM menubar WHERE menu_id = ?', [req.params.menu_id]);
-    res.sendStatus(204);
+    const [result] = await db.execute('DELETE FROM menubar WHERE menu_id = ?', [req.params.menu_id]);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Menu item not found' });
+    }
+    
+    res.json({ message: 'Menu item deleted successfully' });
   } catch (err) {
     console.error("[Error deleting menu item]", err.message);
     res.status(500).json({ error: err.message });

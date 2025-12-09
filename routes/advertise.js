@@ -8,7 +8,7 @@ const fs = require('fs');
 // Set up multer for advertisement image upload
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const dirPath = `/var/www/vhosts/mangaara.com/httpdocs/images/advertise`;
+    const dirPath = `/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images/advertise`;
     fs.mkdirSync(dirPath, { recursive: true });
     cb(null, dirPath);
   },
@@ -48,10 +48,13 @@ router.post('/', upload.single('image'), async (req, res) => {
       [name, image, link_url || null, is_active !== undefined ? is_active : true, created_date || new Date().toISOString().split('T')[0]]
     );
 
-    res.status(201).json({ 
-      id: result.insertId, 
+    res.status(200).json({ 
+      ad_id: result.insertId, 
+      name,
       image,
-      message: 'Advertisement created successfully' 
+      link_url: link_url || null,
+      is_active: is_active !== undefined ? is_active : true,
+      created_date: created_date || new Date().toISOString().split('T')[0]
     });
   } catch (err) {
     console.error("[Error creating advertisement]", err.message);
@@ -128,11 +131,16 @@ router.put('/:id', upload.single('image'), async (req, res) => {
 
     updateValues.push(req.params.id);
 
-    await db.execute(
+    const [result] = await db.execute(
       `UPDATE advertise SET ${updateFields.join(', ')} WHERE ad_id = ?`,
       updateValues
     );
-    res.sendStatus(204);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Advertisement not found' });
+    }
+    
+    res.json({ message: 'Advertisement updated successfully' });
   } catch (err) {
     console.error("[Error updating advertisement]", err.message);
     res.status(500).json({ error: err.message });
@@ -142,11 +150,16 @@ router.put('/:id', upload.single('image'), async (req, res) => {
 // Toggle advertisement active status
 router.patch('/:id/toggle', async (req, res) => {
   try {
-    await db.execute(
+    const [result] = await db.execute(
       'UPDATE advertise SET is_active = NOT is_active WHERE ad_id = ?',
       [req.params.id]
     );
-    res.sendStatus(204);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Advertisement not found' });
+    }
+    
+    res.json({ message: 'Advertisement status toggled successfully' });
   } catch (err) {
     console.error("[Error toggling advertisement status]", err.message);
     res.status(500).json({ error: err.message });
@@ -156,8 +169,13 @@ router.patch('/:id/toggle', async (req, res) => {
 // Delete an advertisement
 router.delete('/:id', async (req, res) => {
   try {
-    await db.execute('DELETE FROM advertise WHERE ad_id = ?', [req.params.id]);
-    res.sendStatus(204);
+    const [result] = await db.execute('DELETE FROM advertise WHERE ad_id = ?', [req.params.id]);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Advertisement not found' });
+    }
+    
+    res.json({ message: 'Advertisement deleted successfully' });
   } catch (err) {
     console.error("[Error deleting advertisement]", err.message);
     res.status(500).json({ error: err.message });

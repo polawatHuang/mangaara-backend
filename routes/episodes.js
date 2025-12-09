@@ -8,9 +8,11 @@ const fs = require('fs');
 // Set up multer to handle file uploads for episodes
 const storageForEP = multer.diskStorage({
   destination: function (req, file, cb) {
-    const { manga_slug, episode } = req.body;
-    const sanitizedMangaName = manga_slug.replace(/\s+/g, '_').toLowerCase();
-    const epDirectory = `/var/www/vhosts/mangaara.com/httpdocs/images/manga/${sanitizedMangaName}/ep${episode}`;
+    const { manga_slug, episode, manga_name, episode_number } = req.body;
+    // Support both manga_slug and manga_name (for backward compatibility)
+    const slug = manga_slug || manga_name;
+    const epNum = episode || episode_number;
+    const epDirectory = `/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images/${slug}/ep${epNum}`;
 
     fs.mkdirSync(epDirectory, { recursive: true });
     cb(null, epDirectory);
@@ -199,7 +201,7 @@ router.post('/pages/upload', uploadForEP.array('episode_images', 100), async (re
 
   try {
     const insertPromises = req.files.map((file, index) => {
-      const image_url = `/images/manga/${manga_slug.replace(/\s+/g, '_').toLowerCase()}/ep${episode}/${file.filename}`;
+      const image_url = `/images/${manga_slug}/ep${episode}/${file.filename}`;
       return db.execute(
         'INSERT INTO episodes (manga_id, manga_slug, episode, page_number, image_url, image_filename) VALUES (?, ?, ?, ?, ?, ?)',
         [manga_id, manga_slug, episode, index + 1, image_url, file.filename]

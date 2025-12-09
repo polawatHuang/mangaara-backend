@@ -8,7 +8,7 @@ const fs = require('fs');
 // Set up multer for background image upload
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const dirPath = `/var/www/vhosts/mangaara.com/httpdocs/images/recommend`;
+    const dirPath = `/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images/recommend`;
     fs.mkdirSync(dirPath, { recursive: true });
     cb(null, dirPath);
   },
@@ -48,10 +48,14 @@ router.post('/', upload.single('background_image'), async (req, res) => {
       [name, slug, commenter, comment, background_image, status || 'pending']
     );
 
-    res.status(201).json({ 
-      id: result.insertId, 
+    res.status(200).json({ 
+      recommend_id: result.insertId, 
+      name,
+      slug,
+      commenter,
+      comment,
       background_image,
-      message: 'Recommendation created successfully' 
+      status: status || 'pending'
     });
   } catch (err) {
     console.error("[Error creating recommendation]", err.message);
@@ -167,11 +171,16 @@ router.put('/:id', upload.single('background_image'), async (req, res) => {
 
     updateValues.push(req.params.id);
 
-    await db.execute(
+    const [result] = await db.execute(
       `UPDATE recommend SET ${updateFields.join(', ')} WHERE recommend_id = ?`,
       updateValues
     );
-    res.sendStatus(204);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Recommendation not found' });
+    }
+    
+    res.json({ message: 'Recommendation updated successfully' });
   } catch (err) {
     console.error("[Error updating recommendation]", err.message);
     res.status(500).json({ error: err.message });
@@ -201,8 +210,13 @@ router.patch('/:id/status', async (req, res) => {
 // Delete a recommendation
 router.delete('/:id', async (req, res) => {
   try {
-    await db.execute('DELETE FROM recommend WHERE recommend_id = ?', [req.params.id]);
-    res.sendStatus(204);
+    const [result] = await db.execute('DELETE FROM recommend WHERE recommend_id = ?', [req.params.id]);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Recommendation not found' });
+    }
+    
+    res.json({ message: 'Recommendation deleted successfully' });
   } catch (err) {
     console.error("[Error deleting recommendation]", err.message);
     res.status(500).json({ error: err.message });
