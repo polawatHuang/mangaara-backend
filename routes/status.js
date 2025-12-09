@@ -77,29 +77,35 @@ router.get('/', async (req, res) => {
             path: middleware.route.path,
             methods: methods
           });
-        } else if (middleware.name === 'router' && middleware.handle && middleware.handle.stack) {
+        } else if (middleware.name === 'router' || middleware.name === 'bound dispatch') {
           // Router middleware
-          middleware.handle.stack.forEach((handler) => {
-            if (handler.route) {
-              const methods = Object.keys(handler.route.methods).join(', ').toUpperCase();
-              const basePath = middleware.regexp.source
-                .replace('^\\/(?=\\/|$)', '')
-                .replace(/\\\//g, '/')
-                .replace(/\?\(\?\=.*\)/, '')
-                .replace(/\$/, '')
-                .replace(/\\/g, '');
-              
-              let routePath = handler.route.path;
-              if (basePath && basePath !== '^') {
-                routePath = '/' + basePath + routePath;
+          if (middleware.handle && middleware.handle.stack) {
+            middleware.handle.stack.forEach((handler) => {
+              if (handler.route) {
+                const methods = Object.keys(handler.route.methods).join(', ').toUpperCase();
+                
+                // Extract base path from regexp
+                let basePath = '';
+                if (middleware.regexp) {
+                  const regexpStr = middleware.regexp.toString();
+                  const match = regexpStr.match(/^\/\^\\\/([^\\?]+)/);
+                  if (match) {
+                    basePath = '/' + match[1].replace(/\\\//g, '/');
+                  }
+                }
+                
+                let routePath = handler.route.path;
+                if (basePath && routePath) {
+                  routePath = basePath + routePath;
+                }
+                
+                routes.push({
+                  path: routePath || handler.route.path,
+                  methods: methods
+                });
               }
-              
-              routes.push({
-                path: routePath,
-                methods: methods
-              });
-            }
-          });
+            });
+          }
         }
       });
     }
@@ -107,8 +113,32 @@ router.get('/', async (req, res) => {
     status.routes.total = routes.length;
     status.routes.endpoints = routes.sort((a, b) => a.path.localeCompare(b.path));
   } catch (err) {
-    // If route enumeration fails, just skip it
+    // If route enumeration fails, provide fallback
     status.routes.error = err.message;
+    // Hardcoded fallback list of known routes
+    status.routes.endpoints = [
+      { path: '/api/auth/register', methods: 'POST' },
+      { path: '/api/auth/login', methods: 'POST' },
+      { path: '/api/auth/verify', methods: 'POST' },
+      { path: '/api/auth/logout', methods: 'POST' },
+      { path: '/api/manga', methods: 'GET, POST, PUT, DELETE' },
+      { path: '/api/manga/:id', methods: 'GET, PUT, DELETE' },
+      { path: '/api/tags', methods: 'GET, POST' },
+      { path: '/api/tags/:id', methods: 'PUT, DELETE' },
+      { path: '/api/episodes', methods: 'GET, POST' },
+      { path: '/api/episode', methods: 'POST' },
+      { path: '/api/comments', methods: 'GET, POST' },
+      { path: '/api/recommend', methods: 'GET, POST' },
+      { path: '/api/advertise', methods: 'GET, POST' },
+      { path: '/api/menubar', methods: 'GET, POST' },
+      { path: '/api/favorites', methods: 'GET, POST, DELETE' },
+      { path: '/api/users', methods: 'GET, POST' },
+      { path: '/api/upload', methods: 'POST' },
+      { path: '/api/status', methods: 'GET' },
+      { path: '/api/test-connection', methods: 'GET' }
+    ];
+    status.routes.total = status.routes.endpoints.length;
+    status.routes.fallback = true;
   }
 
   // Set overall status
@@ -225,28 +255,34 @@ router.get('/routes', async (req, res) => {
             path: middleware.route.path,
             methods: methods.split(', ')
           });
-        } else if (middleware.name === 'router' && middleware.handle && middleware.handle.stack) {
-          middleware.handle.stack.forEach((handler) => {
-            if (handler.route) {
-              const methods = Object.keys(handler.route.methods).join(', ').toUpperCase();
-              const basePath = middleware.regexp.source
-                .replace('^\\/(?=\\/|$)', '')
-                .replace(/\\\//g, '/')
-                .replace(/\?\(\?\=.*\)/, '')
-                .replace(/\$/, '')
-                .replace(/\\/g, '');
-              
-              let routePath = handler.route.path;
-              if (basePath && basePath !== '^') {
-                routePath = '/' + basePath + routePath;
+        } else if (middleware.name === 'router' || middleware.name === 'bound dispatch') {
+          if (middleware.handle && middleware.handle.stack) {
+            middleware.handle.stack.forEach((handler) => {
+              if (handler.route) {
+                const methods = Object.keys(handler.route.methods).join(', ').toUpperCase();
+                
+                // Extract base path from regexp
+                let basePath = '';
+                if (middleware.regexp) {
+                  const regexpStr = middleware.regexp.toString();
+                  const match = regexpStr.match(/^\/\^\\\/([^\\?]+)/);
+                  if (match) {
+                    basePath = '/' + match[1].replace(/\\\//g, '/');
+                  }
+                }
+                
+                let routePath = handler.route.path;
+                if (basePath && routePath) {
+                  routePath = basePath + routePath;
+                }
+                
+                routes.push({
+                  path: routePath || handler.route.path,
+                  methods: methods.split(', ')
+                });
               }
-              
-              routes.push({
-                path: routePath,
-                methods: methods.split(', ')
-              });
-            }
-          });
+            });
+          }
         }
       });
     }
@@ -265,8 +301,42 @@ router.get('/routes', async (req, res) => {
 
     res.json(routeStatus);
   } catch (err) {
-    res.status(500).json({
+    // Hardcoded fallback list
+    const fallbackRoutes = [
+      { path: '/api/auth/register', methods: ['POST'] },
+      { path: '/api/auth/login', methods: ['POST'] },
+      { path: '/api/auth/verify', methods: ['POST'] },
+      { path: '/api/auth/logout', methods: ['POST'] },
+      { path: '/api/manga', methods: ['GET', 'POST', 'PUT', 'DELETE'] },
+      { path: '/api/manga/:id', methods: ['GET', 'PUT', 'DELETE'] },
+      { path: '/api/tags', methods: ['GET', 'POST'] },
+      { path: '/api/tags/:id', methods: ['PUT', 'DELETE'] },
+      { path: '/api/episodes', methods: ['GET', 'POST'] },
+      { path: '/api/episode', methods: ['POST'] },
+      { path: '/api/comments', methods: ['GET', 'POST'] },
+      { path: '/api/recommend', methods: ['GET', 'POST'] },
+      { path: '/api/advertise', methods: ['GET', 'POST'] },
+      { path: '/api/menubar', methods: ['GET', 'POST'] },
+      { path: '/api/favorites', methods: ['GET', 'POST', 'DELETE'] },
+      { path: '/api/users', methods: ['GET', 'POST'] },
+      { path: '/api/upload', methods: ['POST'] },
+      { path: '/api/status', methods: ['GET'] },
+      { path: '/api/test-connection', methods: ['GET'] }
+    ];
+
+    const methodCount = {};
+    fallbackRoutes.forEach(route => {
+      route.methods.forEach(method => {
+        methodCount[method] = (methodCount[method] || 0) + 1;
+      });
+    });
+
+    res.json({
       ...routeStatus,
+      total: fallbackRoutes.length,
+      byMethod: methodCount,
+      endpoints: fallbackRoutes,
+      fallback: true,
       error: err.message
     });
   }
