@@ -64,45 +64,52 @@ router.get('/', async (req, res) => {
   }
 
   // List all registered routes
-  const routes = [];
-  const app = req.app;
-  
-  app._router.stack.forEach((middleware) => {
-    if (middleware.route) {
-      // Routes registered directly on the app
-      const methods = Object.keys(middleware.route.methods).join(', ').toUpperCase();
-      routes.push({
-        path: middleware.route.path,
-        methods: methods
-      });
-    } else if (middleware.name === 'router') {
-      // Router middleware
-      middleware.handle.stack.forEach((handler) => {
-        if (handler.route) {
-          const methods = Object.keys(handler.route.methods).join(', ').toUpperCase();
-          const basePath = middleware.regexp.source
-            .replace('^\\/(?=\\/|$)', '')
-            .replace(/\\\//g, '/')
-            .replace(/\?\(\?\=.*\)/, '')
-            .replace(/\$/, '')
-            .replace(/\\/g, '');
-          
-          let routePath = handler.route.path;
-          if (basePath && basePath !== '^') {
-            routePath = '/' + basePath + routePath;
-          }
-          
+  try {
+    const routes = [];
+    const app = req.app;
+    
+    if (app && app._router && app._router.stack) {
+      app._router.stack.forEach((middleware) => {
+        if (middleware.route) {
+          // Routes registered directly on the app
+          const methods = Object.keys(middleware.route.methods).join(', ').toUpperCase();
           routes.push({
-            path: routePath,
+            path: middleware.route.path,
             methods: methods
+          });
+        } else if (middleware.name === 'router' && middleware.handle && middleware.handle.stack) {
+          // Router middleware
+          middleware.handle.stack.forEach((handler) => {
+            if (handler.route) {
+              const methods = Object.keys(handler.route.methods).join(', ').toUpperCase();
+              const basePath = middleware.regexp.source
+                .replace('^\\/(?=\\/|$)', '')
+                .replace(/\\\//g, '/')
+                .replace(/\?\(\?\=.*\)/, '')
+                .replace(/\$/, '')
+                .replace(/\\/g, '');
+              
+              let routePath = handler.route.path;
+              if (basePath && basePath !== '^') {
+                routePath = '/' + basePath + routePath;
+              }
+              
+              routes.push({
+                path: routePath,
+                methods: methods
+              });
+            }
           });
         }
       });
     }
-  });
 
-  status.routes.total = routes.length;
-  status.routes.endpoints = routes.sort((a, b) => a.path.localeCompare(b.path));
+    status.routes.total = routes.length;
+    status.routes.endpoints = routes.sort((a, b) => a.path.localeCompare(b.path));
+  } catch (err) {
+    // If route enumeration fails, just skip it
+    status.routes.error = err.message;
+  }
 
   // Set overall status
   if (status.database.status === 'disconnected') {
@@ -206,54 +213,63 @@ router.get('/routes', async (req, res) => {
     endpoints: []
   };
 
-  const app = req.app;
-  const routes = [];
+  try {
+    const app = req.app;
+    const routes = [];
 
-  app._router.stack.forEach((middleware) => {
-    if (middleware.route) {
-      const methods = Object.keys(middleware.route.methods).join(', ').toUpperCase();
-      routes.push({
-        path: middleware.route.path,
-        methods: methods.split(', ')
-      });
-    } else if (middleware.name === 'router') {
-      middleware.handle.stack.forEach((handler) => {
-        if (handler.route) {
-          const methods = Object.keys(handler.route.methods).join(', ').toUpperCase();
-          const basePath = middleware.regexp.source
-            .replace('^\\/(?=\\/|$)', '')
-            .replace(/\\\//g, '/')
-            .replace(/\?\(\?\=.*\)/, '')
-            .replace(/\$/, '')
-            .replace(/\\/g, '');
-          
-          let routePath = handler.route.path;
-          if (basePath && basePath !== '^') {
-            routePath = '/' + basePath + routePath;
-          }
-          
+    if (app && app._router && app._router.stack) {
+      app._router.stack.forEach((middleware) => {
+        if (middleware.route) {
+          const methods = Object.keys(middleware.route.methods).join(', ').toUpperCase();
           routes.push({
-            path: routePath,
+            path: middleware.route.path,
             methods: methods.split(', ')
+          });
+        } else if (middleware.name === 'router' && middleware.handle && middleware.handle.stack) {
+          middleware.handle.stack.forEach((handler) => {
+            if (handler.route) {
+              const methods = Object.keys(handler.route.methods).join(', ').toUpperCase();
+              const basePath = middleware.regexp.source
+                .replace('^\\/(?=\\/|$)', '')
+                .replace(/\\\//g, '/')
+                .replace(/\?\(\?\=.*\)/, '')
+                .replace(/\$/, '')
+                .replace(/\\/g, '');
+              
+              let routePath = handler.route.path;
+              if (basePath && basePath !== '^') {
+                routePath = '/' + basePath + routePath;
+              }
+              
+              routes.push({
+                path: routePath,
+                methods: methods.split(', ')
+              });
+            }
           });
         }
       });
     }
-  });
 
-  // Count by method
-  const methodCount = {};
-  routes.forEach(route => {
-    route.methods.forEach(method => {
-      methodCount[method] = (methodCount[method] || 0) + 1;
+    // Count by method
+    const methodCount = {};
+    routes.forEach(route => {
+      route.methods.forEach(method => {
+        methodCount[method] = (methodCount[method] || 0) + 1;
+      });
     });
-  });
 
-  routeStatus.total = routes.length;
-  routeStatus.byMethod = methodCount;
-  routeStatus.endpoints = routes.sort((a, b) => a.path.localeCompare(b.path));
+    routeStatus.total = routes.length;
+    routeStatus.byMethod = methodCount;
+    routeStatus.endpoints = routes.sort((a, b) => a.path.localeCompare(b.path));
 
-  res.json(routeStatus);
+    res.json(routeStatus);
+  } catch (err) {
+    res.status(500).json({
+      ...routeStatus,
+      error: err.message
+    });
+  }
 });
 
 module.exports = router;
