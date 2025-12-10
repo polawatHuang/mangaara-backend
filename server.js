@@ -20,6 +20,7 @@ const uploadRoute = require("./routes/upload");
 const testConnectionRoute = require("./routes/test-connection");
 const statusRoutes = require("./routes/status");
 const { logRequest, logError } = require("./middleware/logger");
+const path = require('path');
 // const { requireAdmin } = require("./middleware/auth");
 
 const app = express();
@@ -54,7 +55,8 @@ app.use(bodyParser.json({ limit: '10mb' })); // Adjust the limit based on your u
 app.use(logRequest);
 
 // ✅ Serve static images
-app.use('/images', express.static(__dirname + '/images'));
+// Serve images from /httpdocs/images
+app.use('/images', express.static(path.join(__dirname, 'images')));
 
 // ✅ Main API Routes
 app.use('/api/auth', authRoutes);
