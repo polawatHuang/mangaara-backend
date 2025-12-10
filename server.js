@@ -56,7 +56,7 @@ app.use(logRequest);
 
 // ✅ Serve static images
 // Serve images from /httpdocs/images
-app.use('/images', express.static('/var/www/vhosts/manga.cipacmeeting.com/httpdocs/images'));
+app.use('/images', express.static('var/www/vhosts/cipacmeeting.com/manga.cipacmeeting.com/httpdocs/images'));
 
 // ✅ Main API Routes
 app.use('/api/auth', authRoutes);
