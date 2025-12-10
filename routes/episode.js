@@ -37,12 +37,34 @@ const upload = multer({
   }
 });
 
+// Helper function to insert episode images
+async function insertEpisodeImages(manga_id, manga_slug, episode, files) {
+  const imageUrls = files.map((file, idx) => 
+    `https://manga.cipacmeeting.com/images/${manga_slug}/ep${episode}/${file.filename}`
+  );
+  
+  const insertPromises = files.map((file, idx) =>
+    db.execute(
+      'INSERT INTO episodes (manga_id, manga_slug, episode, page_number, image_url, image_filename) VALUES (?, ?, ?, ?, ?, ?)',
+      [manga_id, manga_slug, episode, idx + 1, imageUrls[idx], file.filename]
+    )
+  );
+  
+  await Promise.all(insertPromises);
+  return imageUrls;
+}
+
 // Create episode with image uploads (matches frontend format)
 router.post('/', upload.array('episode_images', 100), async (req, res) => {
   const { manga_name, episode_number, totalPage, view } = req.body;
 
   if (!manga_name || !episode_number || !totalPage || !req.files || req.files.length === 0) {
     return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  // Validate episode_number is numeric
+  if (isNaN(episode_number) || parseInt(episode_number) < 1) {
+    return res.status(400).json({ error: 'Episode number must be a positive number' });
   }
 
   try {
@@ -64,18 +86,8 @@ router.post('/', upload.array('episode_images', 100), async (req, res) => {
       [manga_id, episode_number, `Episode ${episode_number}`, view || 0, totalPage]
     );
 
-    // Store image URLs
-    const imageUrls = [];
-    const insertPromises = req.files.map((file, index) => {
-      const image_url = `/images/${manga_name}/ep${episode_number}/${file.filename}`;
-      imageUrls.push(image_url);
-      return db.execute(
-        'INSERT INTO episodes (manga_id, manga_slug, episode, page_number, image_url, image_filename) VALUES (?, ?, ?, ?, ?, ?)',
-        [manga_id, manga_name, episode_number, index + 1, image_url, file.filename]
-      );
-    });
-
-    await Promise.all(insertPromises);
+    // Insert episode images using helper function
+    const imageUrls = await insertEpisodeImages(manga_id, manga_name, episode_number, req.files);
 
     res.json({
       episode_id: episodeResult.insertId,
@@ -85,8 +97,61 @@ router.post('/', upload.array('episode_images', 100), async (req, res) => {
       images: imageUrls
     });
   } catch (err) {
-    console.error('[Error creating episode]', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[Error creating episode]', err);
+    res.status(500).json({ error: 'Failed to create episode' });
+  }
+});
+
+// Update episode images (replace all images for an episode)
+router.put('/', upload.array('episode_images', 100), async (req, res) => {
+  const { manga_name, episode_number } = req.body;
+
+  if (!manga_name || !episode_number || !req.files || req.files.length === 0) {
+    return res.status(400).json({ error: 'Missing manga_name, episode_number, or images' });
+  }
+
+  // Validate episode_number is numeric
+  if (isNaN(episode_number) || parseInt(episode_number) < 1) {
+    return res.status(400).json({ error: 'Episode number must be a positive number' });
+  }
+
+  try {
+    // Get manga_id from manga_slug (manga_name is the slug)
+    const [mangaRows] = await db.execute(
+      'SELECT manga_id FROM manga WHERE manga_slug = ?',
+      [manga_name]
+    );
+
+    if (mangaRows.length === 0) {
+      return res.status(404).json({ error: 'Manga not found' });
+    }
+
+    const manga_id = mangaRows[0].manga_id;
+
+    // Delete old images for this episode
+    await db.execute(
+      'DELETE FROM episodes WHERE manga_id = ? AND manga_slug = ? AND episode = ?',
+      [manga_id, manga_name, episode_number]
+    );
+
+    // Insert new images using helper function
+    const imageUrls = await insertEpisodeImages(manga_id, manga_name, episode_number, req.files);
+
+    // Update total_pages in manga_episodes
+    await db.execute(
+      'UPDATE manga_episodes SET total_pages = ? WHERE manga_id = ? AND episode = ?',
+      [req.files.length, manga_id, episode_number]
+    );
+
+    res.json({
+      message: 'Episode images updated successfully',
+      episode_number: parseInt(episode_number),
+      total_pages: req.files.length,
+      images: imageUrls
+    });
+  } catch (err) {
+    console.error('[Error updating episode images]', err);
+    res.status(500).json({ error: 'Failed to update episode images' });
   }
 });
 

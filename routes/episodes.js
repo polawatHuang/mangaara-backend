@@ -31,10 +31,10 @@ const uploadForEP = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    if (ext === '.jpg' || ext === '.jpeg' || ext === '.png') {
+    if (ext === '.jpg' || ext === '.jpeg' || ext === '.png' || ext === '.webp') {
       cb(null, true);
     } else {
-      cb(new Error('Only .jpg, .jpeg, .png files are allowed.'));
+      cb(new Error('Only .jpg, .jpeg, .png, .webp files are allowed.'));
     }
   }
 });
@@ -42,6 +42,15 @@ const uploadForEP = multer({
 // Create a new manga episode (manga_episodes table)
 router.post('/', async (req, res) => {
   const { manga_id, episode, episode_name, total_pages, created_date, updated_date } = req.body;
+
+  if (!manga_id || !episode) {
+    return res.status(400).json({ error: 'Missing manga_id or episode number' });
+  }
+
+  // Validate episode is numeric
+  if (isNaN(episode) || parseInt(episode) < 1) {
+    return res.status(400).json({ error: 'Episode number must be a positive number' });
+  }
 
   try {
     const [result] = await db.execute(
@@ -51,8 +60,50 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({ id: result.insertId, message: 'Episode created successfully' });
   } catch (err) {
-    console.error("[Error creating episode]", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("[Error creating episode]", err);
+    res.status(500).json({ error: 'Failed to create episode' });
+  }
+});
+
+// Replace all pages/images for an episode
+router.put('/pages/upload', uploadForEP.array('episode_images', 100), async (req, res) => {
+  const { manga_id, manga_slug, episode } = req.body;
+  if (!manga_id || !manga_slug || !episode || !req.files || req.files.length === 0) {
+    return res.status(400).json({ error: 'Missing manga_id, manga_slug, episode, or images' });
+  }
+  try {
+    // Remove old images for this episode
+    await db.execute(
+      'DELETE FROM episodes WHERE manga_id = ? AND manga_slug = ? AND episode = ?',
+      [manga_id, manga_slug, episode]
+    );
+
+    // Insert new images and collect URLs
+    const imageUrls = req.files.map((file, idx) => {
+      return `https://manga.cipacmeeting.com/images/${manga_slug}/ep${episode}/${file.filename}`;
+    });
+    const insertPromises = req.files.map((file, idx) =>
+      db.execute(
+        'INSERT INTO episodes (manga_id, manga_slug, episode, page_number, image_url, image_filename) VALUES (?, ?, ?, ?, ?, ?)',
+        [manga_id, manga_slug, episode, idx + 1, imageUrls[idx], file.filename]
+      )
+    );
+    await Promise.all(insertPromises);
+
+    // Update total_pages in manga_episodes
+    await db.execute(
+      'UPDATE manga_episodes SET total_pages = ? WHERE manga_id = ? AND episode = ?',
+      [req.files.length, manga_id, episode]
+    );
+
+    res.status(200).json({
+      message: 'Episode pages replaced successfully',
+      total_pages: req.files.length,
+      images: imageUrls
+    });
+  } catch (err) {
+    console.error('[Error replacing episode pages]', err);
+    res.status(500).json({ error: 'Failed to replace episode pages' });
   }
 });
 
@@ -65,8 +116,8 @@ router.get('/manga/:manga_id', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error("[Error fetching episodes]", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("[Error fetching episodes]", err);
+    res.status(500).json({ error: 'Failed to fetch episodes' });
   }
 });
 
@@ -81,8 +132,8 @@ router.get('/:id', async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Episode not found' });
     res.json(rows[0]);
   } catch (err) {
-    console.error("[Error fetching episode]", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("[Error fetching episode]", err);
+    res.status(500).json({ error: 'Failed to fetch episode' });
   }
 });
 
@@ -97,8 +148,8 @@ router.get('/manga/:manga_id/episode/:episode', async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Episode not found' });
     res.json(rows[0]);
   } catch (err) {
-    console.error("[Error fetching episode]", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("[Error fetching episode]", err);
+    res.status(500).json({ error: 'Failed to fetch episode' });
   }
 });
 
@@ -135,8 +186,8 @@ router.put('/:id', async (req, res) => {
     );
     res.sendStatus(204);
   } catch (err) {
-    console.error("[Error updating episode]", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("[Error updating episode]", err);
+    res.status(500).json({ error: 'Failed to update episode' });
   }
 });
 
@@ -146,8 +197,8 @@ router.delete('/:id', async (req, res) => {
     await db.execute('DELETE FROM manga_episodes WHERE id = ?', [req.params.id]);
     res.sendStatus(204);
   } catch (err) {
-    console.error("[Error deleting episode]", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("[Error deleting episode]", err);
+    res.status(500).json({ error: 'Failed to delete episode' });
   }
 });
 
@@ -157,8 +208,8 @@ router.post('/:id/view', async (req, res) => {
     await db.execute('UPDATE manga_episodes SET view = view + 1 WHERE id = ?', [req.params.id]);
     res.sendStatus(204);
   } catch (err) {
-    console.error("[Error incrementing episode view]", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("[Error incrementing episode view]", err);
+    res.status(500).json({ error: 'Failed to increment view count' });
   }
 });
 
@@ -184,8 +235,8 @@ router.get('/latest/all', async (req, res) => {
     `, [limit]);
     res.json(rows);
   } catch (err) {
-    console.error("[Error fetching latest episodes]", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("[Error fetching latest episodes]", err);
+    res.status(500).json({ error: 'Failed to fetch latest episodes' });
   }
 });
 
@@ -198,17 +249,25 @@ router.post('/pages/upload', uploadForEP.array('episode_images', 100), async (re
   const { manga_id, manga_slug, episode } = req.body;
 
   if (!manga_id || !manga_slug || !episode || !req.files || req.files.length === 0) {
-    return res.status(400).json({ error: 'Invalid request data' });
+    return res.status(400).json({ error: 'Missing manga_id, manga_slug, episode, or images' });
+  }
+
+  // Validate episode is numeric
+  if (isNaN(episode) || parseInt(episode) < 1) {
+    return res.status(400).json({ error: 'Episode number must be a positive number' });
   }
 
   try {
-    const insertPromises = req.files.map((file, index) => {
-      const image_url = `/images/${manga_slug}/ep${episode}/${file.filename}`;
-      return db.execute(
+    const imageUrls = req.files.map((file, idx) =>
+      `https://manga.cipacmeeting.com/images/${manga_slug}/ep${episode}/${file.filename}`
+    );
+
+    const insertPromises = req.files.map((file, idx) =>
+      db.execute(
         'INSERT INTO episodes (manga_id, manga_slug, episode, page_number, image_url, image_filename) VALUES (?, ?, ?, ?, ?, ?)',
-        [manga_id, manga_slug, episode, index + 1, image_url, file.filename]
-      );
-    });
+        [manga_id, manga_slug, episode, idx + 1, imageUrls[idx], file.filename]
+      )
+    );
 
     await Promise.all(insertPromises);
 
@@ -220,11 +279,12 @@ router.post('/pages/upload', uploadForEP.array('episode_images', 100), async (re
 
     res.status(201).json({ 
       message: 'Episode pages uploaded successfully', 
-      total_pages: req.files.length 
+      total_pages: req.files.length,
+      images: imageUrls
     });
   } catch (err) {
-    console.error('[Error uploading episode pages]', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[Error uploading episode pages]', err);
+    res.status(500).json({ error: 'Failed to upload episode pages' });
   }
 });
 
@@ -237,8 +297,8 @@ router.get('/pages/manga/:manga_id/episode/:episode', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error("[Error fetching episode pages]", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("[Error fetching episode pages]", err);
+    res.status(500).json({ error: 'Failed to fetch episode pages' });
   }
 });
 
@@ -251,8 +311,8 @@ router.get('/pages/slug/:manga_slug/episode/:episode', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error("[Error fetching episode pages]", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("[Error fetching episode pages]", err);
+    res.status(500).json({ error: 'Failed to fetch episode pages' });
   }
 });
 
@@ -265,8 +325,8 @@ router.delete('/pages/manga/:manga_id/episode/:episode', async (req, res) => {
     );
     res.sendStatus(204);
   } catch (err) {
-    console.error("[Error deleting episode pages]", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("[Error deleting episode pages]", err);
+    res.status(500).json({ error: 'Failed to delete episode pages' });
   }
 });
 
