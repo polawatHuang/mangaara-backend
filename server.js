@@ -53,6 +53,9 @@ app.use(bodyParser.json({ limit: '10mb' })); // Adjust the limit based on your u
 // ✅ Request logging middleware
 app.use(logRequest);
 
+// ✅ Serve static images
+app.use('/images', express.static(__dirname + '/images'));
+
 // ✅ Main API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/mangas', mangaRoutes);
