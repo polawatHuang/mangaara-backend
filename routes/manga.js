@@ -72,7 +72,7 @@ router.post('/', upload.single('manga_bg_img'), async (req, res) => {
     tagArray = JSON.stringify([]);
   }
 
-  const manga_bg_img = req.file ? `/images/${manga_slug}/${req.file.filename}` : null; // Save the image path
+  const manga_bg_img = req.file ? `https://manga.cipacmeeting.com/images/${manga_slug}/${req.file.filename}` : null; // Save the image path
 
   try {
     const [result] = await db.execute(
@@ -251,7 +251,7 @@ router.put('/', upload.single('manga_bg_img'), async (req, res) => {
     tagArray = JSON.stringify([]);
   }
 
-  const manga_bg_img = req.file ? `/images/${manga_slug}/${req.file.filename}` : null;
+  const manga_bg_img = req.file ? `https://manga.cipacmeeting.com/images/${manga_slug}/${req.file.filename}` : null;
 
   try {
     const updateFields = [];
@@ -316,7 +316,7 @@ router.put('/:id', upload.single('manga_bg_img'), async (req, res) => {
     tagArray = JSON.stringify([]);
   }
 
-  const manga_bg_img = req.file ? `/images/${manga_slug}/${req.file.filename}` : null;
+  const manga_bg_img = req.file ? `https://manga.cipacmeeting.com/images/${manga_slug}/${req.file.filename}` : null;
 
   try {
     const updateFields = [];
