@@ -56,7 +56,7 @@ app.use(logRequest);
 
 // ✅ Serve static images
 // Serve images from /httpdocs/images
-app.use('/images', express.static(path.join(__dirname, 'images')));
+app.use('/images', express.static(process.env.UPLOAD_BASE_PATH));
 
 // ✅ Main API Routes
 app.use('/api/auth', authRoutes);
