@@ -205,7 +205,7 @@ router.get('/', async (req, res) => {
               // Try multiple patterns to extract the base path
               let match = regexpStr.match(/^\/\^\\\/([^\\?]+)/);
               if (!match) {
-                match = regexpStr.match(/^\\/\\^(.+?)\\\\\\//);
+                match = regexpStr.match(/^\/\^(.+?)\\\//);
               }
               if (match) {
                 basePath = '/' + match[1].replace(/\\\//g, '/').replace(/\\/g, '');
