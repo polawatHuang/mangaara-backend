@@ -20,6 +20,7 @@ const uploadRoute = require("./routes/upload");
 const testConnectionRoute = require("./routes/test-connection");
 const statusRoutes = require("./routes/status");
 const { logRequest, logError } = require("./middleware/logger");
+const { trackMetrics } = require("./middleware/metrics");
 const path = require('path');
 // const { requireAdmin } = require("./middleware/auth");
 
@@ -53,6 +54,9 @@ app.use(bodyParser.json({ limit: '10mb' })); // Adjust the limit based on your u
 
 // ✅ Request logging middleware
 app.use(logRequest);
+
+// ✅ Metrics tracking middleware
+app.use(trackMetrics);
 
 // ✅ Serve static images
 // Serve images from /httpdocs/images
