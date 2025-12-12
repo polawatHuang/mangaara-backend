@@ -4,13 +4,13 @@ const statusRouter = require('../routes/status');
 // Track response time for all requests
 function trackMetrics(req, res, next) {
   const startTime = Date.now();
-  
-  // Capture the original res.json and res.send
-  const originalJson = res.json;
-  const originalSend = res.send;
-  const originalStatus = res.status;
+  const endpoint = req.path || req.url || 'unknown';
   
   let statusCode = 200;
+  let tracked = false;
+  
+  // Capture the original res.status
+  const originalStatus = res.status;
   
   // Override res.status to capture status code
   res.status = function(code) {
@@ -18,37 +18,32 @@ function trackMetrics(req, res, next) {
     return originalStatus.call(this, code);
   };
   
-  // Track when response is sent
+  // Track when response is actually finished
   const trackResponse = () => {
+    if (tracked) return; // Prevent double tracking
+    tracked = true;
+    
     const duration = Date.now() - startTime;
     
-    // Track response time
+    // Track response time with endpoint and status code
     if (statusRouter.trackResponseTime) {
-      statusRouter.trackResponseTime(duration);
+      statusRouter.trackResponseTime(duration, endpoint, statusCode);
     }
     
     // Track errors (4xx and 5xx responses)
     if (statusCode >= 400 && statusRouter.trackError) {
       statusRouter.trackError({
-        message: `HTTP ${statusCode} - ${req.method} ${req.path}`,
+        message: `HTTP ${statusCode} - ${req.method} ${endpoint}`,
         statusCode,
-        path: req.path,
+        path: endpoint,
         method: req.method
-      });
+      }, endpoint);
     }
   };
   
-  // Override res.json
-  res.json = function(data) {
-    trackResponse();
-    return originalJson.call(this, data);
-  };
-  
-  // Override res.send
-  res.send = function(data) {
-    trackResponse();
-    return originalSend.call(this, data);
-  };
+  // Listen to finish event (covers all response methods)
+  res.on('finish', trackResponse);
+  res.on('close', trackResponse);
   
   next();
 }

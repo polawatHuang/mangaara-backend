@@ -36,4 +36,34 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-module.exports = pool.promise();
+const promisePool = pool.promise();
+
+// Wrap execute to track slow queries
+const originalExecute = promisePool.execute.bind(promisePool);
+promisePool.execute = async function(sql, values) {
+  const startTime = Date.now();
+  try {
+    const result = await originalExecute(sql, values);
+    const duration = Date.now() - startTime;
+    
+    // Track slow queries (lazy load to avoid circular dependency)
+    if (duration > 1000) {
+      try {
+        const statusRouter = require('./routes/status');
+        if (statusRouter.trackSlowQuery) {
+          statusRouter.trackSlowQuery(sql, duration);
+        }
+      } catch (e) {
+        // Ignore if status router not available yet
+      }
+    }
+    
+    return result;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error(`[DB Query Error] ${error.message} (${duration}ms)`);
+    throw error;
+  }
+};
+
+module.exports = promisePool;
